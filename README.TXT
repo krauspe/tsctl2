@@ -1,2 +1,1 @@
-This stuff is under heavy developement !!!!!!!1
-Please don't touch !!!!
+some stuff for remote reconfiguration of a bunch of linux machines
