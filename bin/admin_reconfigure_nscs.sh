@@ -13,9 +13,10 @@
 #              (force_reconfigureld will still be excepted) 
 #
 #  13.01.2016: Use different scripts for vlan switching, depending on usage in test (lx3) or production environment (sysman1)
+#  18.01.2016: create backup of target_config_list with postfix ".previous"
+#  27.01.2016: do update nsc_status_list after target config list check to improve performance if errors where found
 #
-# TODO: check wether admin_get_status_list.sh was successfull and exit if not !
-# TODO: split in functions to modularize and thus make it possible to process singe resource targets
+# TODO: look at ../TODO.TXT
 #
 # <2step>
 . /etc/2step/2step.vars
@@ -65,6 +66,7 @@ resource_nsc_list_file=${vardir}/resource_nsc.list   # all nscs from all resourc
 remote_nsc_list_file=${vardir}/remote_nsc.list       # all nscs from all remote domains <remote-fqdn>
 nsc_status_list_file=${vardir}/nsc_status.list       # discovered : <resource-nsc-fqdn> <current-fqdn> <status>
 target_config_list_file=${vardir}/target_config.list # wanted     : <resource-nsc-fqdn> <remote-fqdn>
+target_config_list_previous_file=${vardir}/target_config.list.previous
 
 # define functions
 
@@ -109,13 +111,18 @@ function get_domain_server_hn
   done
 }
 
+# MAIN
+
 echo "\n<< Reconfigure Resource NSC's >>\n"
 
-# ensure existence of target_config_list 
+# ensure existence of target_config_list and make backup 
 
 if [[ ! -f $target_config_list_file ]]; then
   echo "\n  $target_config_list_file doesn't exist. exiting !\n"
   exit 1
+else
+  echo "  backup target config list as $target_config_list_previous_file"
+  cp $target_config_list_file $target_config_list_previous_file
 fi
 
 # ensure existence of resource_nsc_list 
@@ -145,23 +152,6 @@ do
   mac=$2
   VALID_REMOTE_FQDNS="$VALID_REMOTE_FQDNS $fqdn"
 done < $remote_nsc_list_file
-
-# create/update nsc_status_list ################
- echo "\nCREATE/UPDATE nsc_status_list\n" 
- echo "(this may take a while)\n" 
- ${bindir}/admin_get_status_list.sh
-
-
-# read nsc_status_list ################
-while read line
-do
-  set -- $line
-  resource_fqdn=$1
-  current_fqdn=$2
-  status=$3
-  CURRENT_FQDN[$resource_fqdn]=$current_fqdn  
-  STATUS[$resource_fqdn]=$status  
-done < $nsc_status_list_file
 
 # read target_config_list ################
 
@@ -242,7 +232,24 @@ else
   echo ": ok >>\n"
 fi
 
-# MAIN
+# create/update nsc_status_list ################
+ echo "\nCREATE/UPDATE nsc_status_list\n" 
+ echo "(this may take a while)\n" 
+ ${bindir}/admin_get_status_list.sh
+
+
+# read nsc_status_list ################
+while read line
+do
+  set -- $line
+  resource_fqdn=$1
+  current_fqdn=$2
+  status=$3
+  CURRENT_FQDN[$resource_fqdn]=$current_fqdn  
+  STATUS[$resource_fqdn]=$status  
+done < $nsc_status_list_file
+
+# RECONFIGURATION
  
 for resource_fqdn in $RESOURCE_FQDNS
 do
@@ -288,12 +295,16 @@ do
 
     # RECONFIGURE AND REBOOT
     echo
-    echo "ssh $current_domain_server ssh $current_fqdn ${bindir}/nsc_reconfigure.sh $remote_fqdn reboot"
-    $dbg ssh $current_domain_server "ssh $current_fqdn ${bindir}/nsc_reconfigure.sh $remote_fqdn reboot"
+    echo "ssh $current_domain_server ssh $current_fqdn ${bindir}/nsc_reconfigure.sh $remote_fqdn reboot &"
 
-    if (( $? == 0 )); then 
+    # TODO: possible run in background
+    $dbg ssh $current_domain_server "ssh $current_fqdn ${bindir}/nsc_reconfigure.sh $remote_fqdn reboot &"
+
+    if (( $? == 0 )); then
       reconfigure_sucessful=1
     fi
+
+    # TODO: possibly wait a few seconds ... how many ?....
 
     # SWITCH VLAN 
 
