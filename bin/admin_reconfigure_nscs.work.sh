@@ -293,11 +293,15 @@ do
     # RECONFIGURE AND REBOOT
     echo
     echo "ssh $current_domain_server ssh $current_fqdn ${bindir}/nsc_reconfigure.sh $remote_fqdn reboot"
+
+    # TODO: possible run in background
     $dbg ssh $current_domain_server "ssh $current_fqdn ${bindir}/nsc_reconfigure.sh $remote_fqdn reboot"
 
-    if (( $? == 0 )); then 
+    if (( $? == 0 )); then
       reconfigure_sucessful=1
     fi
+
+		# TODO: possibly wait a few seconds ... how many ?....
 
     # SWITCH VLAN 
 
