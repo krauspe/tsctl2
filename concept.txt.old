@@ -1,0 +1,85 @@
+Flexible Remote Pilot Konfiguration:
+-----------------------------------------------------------------------
+Management Server:
+
+Eine Maschine dient als Management Server, zB sysman1.
+
+Ein Management Tool (generischer Name "Remote NSC Admin")
+uebernimmt folgende Funktionen:
+
+1. Daten einsammeln:
+
+1.1. Von den Simulatoren der Standorte (Remote Domains):
+
+- die fuer Remote Piloting reservierten Hostnamen und IP Adressen ,
+  genauer:
+
+  Remote-NSC-Liste
+
+  - Hostname
+  - IP-Adressen/SubnetMask
+
+  Site-spezifische Daten
+
+  - DNS-Server
+  - NIS-Server/ NIS-Domain
+  - Gateway
+  - Routing (incl Multicast)
+  
+
+  Diese sind identifizierbar durch DNS Eintraege (txt record) mit der Variable rnsc=1 
+  Ueber die hostnamen werden alle relevanten Informationen fuer die Rekonfiguration eingesamelt
+
+
+1.2. Von den Simulatoren der Akademie (Resource Domains):
+
+- Hostliste der verfuegbaren fuer Remote-Piloting vorgesehenen NSCs, also i.a. PSPs
+
+  Resource-NSC-Liste:
+
+  - Hostnamen
+  - IP-Adressen (aus Resource Domain)
+  - MAC-Adressen
+  - Status (on/off, aktuelle Zuordnung etc)
+
+2. Initialisierung der Akademie NSCs
+
+   - Jeder Resource NSC sichert sich lokal seine Ursprungskonfiguration (Hostname.IP,SubnetMask,Gateway, Routing,DNS,NIS,)
+
+   - Optional: ALLE vorgesehenen Resource-NSCs bekommen ALLE Remote-NSC-Konfigurationen ALLER Standorte.
+     Alle Listen werden nach einer noch festzulegenden Weise aktuell gehalten 
+     (ggfs bei jedem Start der Admin-App aktualisiert, sofern alle Standort-NSSe  bzw Resource-NSCs ereichbar sind, sonst aus Cache)
+ 
+2.1 
+
+3. Konfiguration erstellen, verteilen und aktivieren
+
+3.1 Zuordnungsliste fuer Soll-Konfiguration erstellen (erst cmdline, spaeter ggfs GUI):
+
+    - Resource-NSC: <resource-hostname.resource-domain> -> Remote-NSC: remote-hostname.remote-doamin>
+
+3.2 VLan Konfiguration gemaess Zuordnungsliste anpassen
+
+3.3 Zuordnung auf jedem Resource-NSC aktivieren: ueber Managment-Tool/LAN falls vorhanden, oder lokal (wie momentan geplant)
+
+
+-----------------------------------------------------------------------
+
+Implementierung:
+
+Server Prozess (tsctl) 
+
+Funktionen fuer Remote-Domains auf nss
+
+- Liste der Remote-NSC Hostnamen/IP abfragen
+- Konfig dieser NSCs abfragen
+- im JSON Format uebers Netz liefern
+- remote-NSCs aus Hostlisten (remote_adm.pl) ein/austragen
+- ...
+
+Funktionen fuer Resource-Domains auf nss
+
+- Liste der Resource NSCs (PSPs ) erzeugen (rnsc=1 im DNS TXT Record)
+- allen Resource NSCs die Remote-NSC-Konfigurationen ALLER Standorte uebergeben (ueber tsctl client vom Admin-Tool geschickt)
+- ...
+

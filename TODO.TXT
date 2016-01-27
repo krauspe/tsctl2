@@ -1,0 +1,53 @@
+Ueberarbeitung der Statusabfrage: (admin_get_status_list.sh und nss_manage_remote_nsc.sh)
+
+Die Statusabfrage sollte zur Beschleunigung jeweils den warscheinlichsten Zustand annehmen 
+
+Zustand: 1. Erster Status Run
+
+   - keine target_config_list.previous
+   - keine status_list
+
+    -> suche in resource domain (direkt):
+
+      -> gefunden           ->                               : status list entry: resource_fqdn resource_fqdn available (local) 
+
+      -> nicht gefunden     -> full search in remote domains (nss_manage_remote_nsc.sh):
+
+                               -> gefunden in remote domain  : status list entry: resource_fqdn remote_fqdn occupied (remote)
+                               -> nicht gefunden             : status list entry: resource_fqdn unknown unreachable 
+
+Zustand: 2.
+
+   - keine taregt_config_list.previous
+   - status_list vorh.     -> direct search gemaess status_list 
+
+                              -> gefunden in resource domain : status list entry: resource_fqdn resource_fqdn available (local)
+                              -> gefunden in remote domain   : status list entry: resource_fqdn remote_fqdn occupied (remote) 
+                              -> nicht gefunden         
+
+                                  2. full search in remote domains (ohne die domain gem status_list)
+                                     -> gefunden in remote domain   : status list entry: resource_fqdn remote_fqdn occupied (remote)
+                                     -> nicht gefunden              : status list entry: resource_fqdn unknown unreachable 
+                      
+Zustand: 3. (alle weiteren) 
+
+   - target_config_list.previous: letzter soll-zustand
+
+                           -> 1. direct search gemaess target_config_list.previous
+
+                               -> gefunden in resource domain : status list entry: resource_fqdn resource_fqdn available (local)
+                               -> gefunden in remote domain   : status list entry: resource_fqdn remote_fqdn occupied (remote)
+                               -> nicht gefunden  
+
+                                  2. full search in remote domains (ohne die domain gem target_config_list.previous)
+                                     -> gefunden in remote domain   : status list entry: resource_fqdn remote_fqdn occupied (remote)
+                                     -> nicht gefunden              : status list entry: resource_fqdn unknown unreachable 
+                                
+
+Search-types:
+
+ direct: wenn resource_fqdn==remote_fqdn -> ping okal -> ssh test lokal
+         wenn resource_fqdn!=remote_fqdn -> ssh nss ping psp -> ssh nss ssh psp
+
+ full remote search: run nss_script (? oder admin script ?) welche alle rnsc's aus der DNS domain abfragt (ping + ssh)
+ 

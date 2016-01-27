@@ -1,0 +1,56 @@
+Flexible Remote Pilot Konfiguration: (draft)
+-----------------------------------------------------------------------
+Management Server:
+
+Eine Maschine dient als Management Server, zB sysman1.
+
+Ein Management Tool (generischer Name "Remote NSC Admin")
+uebernimmt folgende Funktionen:
+
+1. Daten einsammeln:
+
+1.1. Von den Simulatoren der Standorte (Remote Domains):
+
+- die fuer Remote Piloting reservierten Hostnamen und IP Adressen ,
+  genauer:
+
+  - Remote-NSC-Liste (aus DNS txt records: rnsc=1) 
+  - Netzwerk-Konfiguration aller Hosts der Liste (2step.vars Files)
+  - Datei: remote_nsc.list
+
+1.2. Von den Simulatoren der Akademie (Resource Domains):
+
+- Hostliste der verfuegbaren fuer Remote-Piloting vorgesehenen NSCs, also i.a. PSPs
+
+  Resource-NSC-Liste:
+
+  - Status (on/off, aktuelle Zuordnung etc)
+  - Datei: rsource_nsc.list
+
+2. Initialisierung der Akademie NSCs, Status erfassen
+
+   Jeder Resource NSC hat seine Ursprungskonfiguration unter /etc/2step/2step.vars gespeichert 
+   Alle anderen moeglichen Konfigurationen (fuer alle Remote Domains) bekommt er vom Management/Admin Server 
+   Die Konfigurationen koennen jederzeit aktualisiert werden
+ 
+2.1  - Alle moeglichen Konfigs auf remote domains erzeugen, vom Management Server einsammeln, auf alle resource domain NSSe verteilen 
+       und von dort weiter auf alle resource nsc's.
+
+2.2  - Status-Datei: nsc_status.list : Eintraege: <resource-nsc> <active-remote-nsc> <status>
+
+3. Konfiguration erstellen, verteilen und aktivieren
+
+3.1 Zuordnungsliste fuer Soll-Konfiguration erstellen (erst cmdline, spaeter ggfs GUI):
+
+    - Input: remote_nsc.list und nsc_status.list 
+    - Resource-NSC: <resource-hostname.resource-domain> -> Remote-NSC: remote-hostname.remote-doamin>
+    - output: target_config.list: <resource-nsc> <target-remote-nsc>
+    - Status-Check (Zuordnung)  und Konsistenzcheck vor Erstellung 
+
+3.2 VLan Konfiguration gemaess Zuordnungsliste anpassen -> Uwe's Script
+
+3.3 Zuordnung auf jedem Resource-NSC aktivieren: ueber Managment-Tool/LAN falls vorhanden, oder lokal (wie momentan geplant)
+    - bei vorhandener Zuordnung (occupied nsc) diese vom aktuellen remote domain server rekonfigurieren
+
+3.4 Ein/Austragen in/aus Hostlisten fuer die nsc-Kommandos ueber nsc_adm add/delete
+

@@ -1,0 +1,368 @@
+#!/usr/bin/ksh
+
+DEBUG=0 ; [[ $DEBUG == *1* ]] && set -x		# set -x fuer das hauptprogramm ohne funktionen ...
+FDEBUG=0 ; [[ $FDEBUG == *1* ]] && set -x	# set -x fuer funktionen ...
+#dbg=""
+dbg=echo
+#
+# 2step-netconfig
+#
+# (c)  www.pixel-bit.de, markus braun
+#
+# das script aendert die tcp/ip netzwerkkonfiguration eines suse rechners.
+# die notwendigen angaben bezieht diese script aus der Datei aus $1
+#
+# (c) peter.krauspe@dfs.de  # Aenderungen 16.10.2015
+#
+# Modifiziert fuer rein lokale Verwendung mit vorhandener Datei 2step.vars als Kommandozeilenparameter
+# 2step.vars muss mit 2step-get-infos erzeugt worden sein 
+# 
+# changes 01.12.2015: removed get_lookup_hosts for local use
+
+
+# main 
+
+# global var ...
+
+typeset fqdn=""						# fqdn aus $hn.$dn 
+typeset hwaddr=""					# hardware address -> mac address ...
+typeset hn=""						# ...
+typeset sn=""						# ...
+typeset -A FILE						# FILE array zum einlesen von dateiinhalten ...
+typeset argc
+
+if (( $# <= 0 )); then
+  echo "\nusage: $(basename $0) <2step.vars file>\n"
+  exit 1
+fi
+
+if [[ -f $1 ]]; then
+  twostep_vars=$1
+  source $twostep_vars
+  # alle konfigurationswerte sind nun eingelesen 
+else
+  echo "$1 not found !!"
+  exit
+fi
+
+# schreiben der konfiguration ... fuer alle netzwerkschnittstellen ...
+
+
+function get_lookup_dns
+{ 
+
+	typeset type=$1
+	typeset fqdn=$2
+	typeset result=""
+	typeset pattern1=""
+	typeset pattern2=""
+
+		# nameserver erreichbar, lookup ueber dns ...
+		case $type in
+		txt)
+			# txt-record ... "*descriptive*text*" 
+			#-->lintest25.se.dfs.de descriptive text " dn=se.dfs.de gw=10.232.190.254 ns=10.232.250.190:10.232.250.190 sn=255.255.255.0 dv=eth0 \013"<---
+
+			if txt="$( host -W 5 -t $type ${fqdn} )"
+			then
+				while [[ $txt == *\"* ]]
+				do
+					txt=${txt#*\"}
+					[[ $txt != *\"* ]] && break
+					result=" $result ${txt%%\"*} "
+					txt=${txt#*\"}
+				done
+
+				result=${result#*\"} ; result=${result%\"*}	
+				result=${result//\\/}				# ; entfernen ...
+			else
+				txt=""
+				result=""
+			fi
+
+			;;
+		a)
+			# a-record ... "*has*dress*"
+			#-->#lintest25.se.dfs.de has address 10.232.250.25<-- 
+			pattern1=has ; pattern2=address
+			set -- $( host -W 7 -t $type ${fqdn} )
+
+			if [[ "$*" == *${pattern1}*${pattern2}* ]]
+			then
+				# antwort erhalten ...
+				eval result=\$$(( $# ))
+				result=ip=$result
+			else
+				# keine antwort erhalten ...
+				result=""
+			fi
+			;;
+
+		ptr)
+			# ptr-record ...
+			# -->161.250.232.10.in-addr.arpa domain name pointer chemnitz.se.dfs.de.
+			# -->Host 167.250.232.10.in-addr.arpa not found: 3(NXDOMAIN)
+			pattern1=Host ; pattern2='found:'
+			set -- $( host -W 7 -t $type ${fqdn} )
+			if [[ "$*" != *${pattern1}*${pattern2}* ]]
+			then
+				# antwort erhalten ...
+				result=hn=${5%.}
+			else
+				# keine antwort erhalten ...
+				result=""
+			fi
+			;;
+
+		esac
+
+	echo $result
+
+}
+
+function get_lookup
+{
+	[[ $FDEBUG == *1* ]] && set -x	# set -x fuer funktionen ...
+
+	HN[function.$0.call]="initial"
+
+	
+	typeset type=$1			# a,txt, (a-/txt-/ptr-record), oder ptr 
+	typeset fqdn=$2			# lookup von hostname/fqdn  ...
+	typeset result=""		# anfrage antwort ...
+	typeset s=""
+
+##      deleted hosts lookup for local version  P.K. 11/2015
+#
+#	if [[ -z ${HN[lookup.hosts.type.$type.fqdn.$fqdn]} ]]
+#	then
+#		# 1. lookup in /etc/hosts ...	# /etc/hosts ...
+#		result=$( get_lookup_hosts $type $fqdn )
+#		HN[lookup.hosts.type.$type.fqdn.$fqdn]="$result"
+#
+#	else
+#		result="${HN[lookup.hosts.type.$type.fqdn.$fqdn]}"
+#	fi
+
+	result="${HN[lookup.hosts.type.$type.fqdn.$fqdn]}"
+
+	if [[ -z ${HN[lookup.hosts.type.$type.fqdn.$fqdn]} && ${DNS_OK} == yes ]]
+	then
+		if [[ -z ${HN[lookup.dns.type.$type.fqdn.$fqdn]} ]]
+		then
+			# 2. lookup in dns ...
+
+			result=$( get_lookup_dns $type $fqdn )
+
+			result=${result//+([$WSPACE])=+([$WSPACE])/=}
+			s=""
+
+			for result in "$result"
+			do
+				[[ $result != *=* ]] && continue
+				s=" $s $result"
+			done
+
+			result=$s
+
+			HN[lookup.dns.type.$type.fqdn.$fqdn]="$result"
+		else
+
+			result="${HN[lookup.dns.type.$type.fqdn.$fqdn]}"
+
+		fi
+	fi
+
+	echo "hn=$fqdn ${result} "
+
+}
+
+
+for hn in ${HN[fqdn.list]}		# konfiguration fuer alle hn=... , in eingelesener reihenfolge !
+do
+
+	# interface device-file ermitteln
+	#
+	# mac-adresse ...
+	#
+	# cat /sys/class/net/eth0/address
+	# 00:1a:6b:36:68:d0
+
+	hwaddr=$(</sys/class/net/${HN[${hn}.dv]}/address 2>/dev/null)	# mac adresse lower-case
+
+	if [[ -z ${hwaddr} ]]
+	then
+		die "interface: ${HN[${hn}.dv]} not exist, skip to next hostname/interface ..."
+		continue				# naechster hn=...
+	fi
+
+	# device konfigdatei ermitteln und sourcen ...
+	#
+	f=$( echo /etc/sysconfig/network/ifcfg*${hwaddr} )
+	[[ ! -f $f ]] && f=/etc/sysconfig/network/ifcfg-${HN[${hn}.dv]}
+
+	if [[ ! -f $f ]]		# weder ifcfg-*<mac>, noch ifcfg-ethx vorhanden ...
+	then
+
+		die "prog:$0 : no ip-config-interface file found create it: $f ..."
+
+		# konfigurationsdatei erstellen schreiben ...
+		if [[ ${HN[${hn}.ip]} != 0.0.0.0 ]]
+		then
+			# dhcp ip ...
+			cat <<-@ > $f
+			BOOTPROTO='dhcp'
+			STARTMODE='auto'
+			UNIQUE=$RANDOM
+			USERCONTROL='no'
+			_type=eth
+			BROADCAST=''
+			IPADDR=''
+			MTU=''
+			@
+		else
+			# statuc ip ...
+			cat <<-@ > $f
+			BOOTPROTO='static'
+			STARTMODE='auto'
+			UNIQUE=$RANDOM
+			USERCONTROL='no'
+			_type=eth
+			BROADCAST=''
+			IPADDR=${HN[${hn}.ip]}
+			MTU=1500
+			NETMASK=${HN[${hn}.sn]}
+			NETWORK=''
+			@
+		fi
+
+	fi
+
+	# konfiguration einlesen ...
+	while read line
+	do
+		FILE["${line%%=*}"]="$line"
+	done < ${f}
+
+	# konfiguration aendern ...
+
+	[[ ${FILE[_type]} == '' ]] && FILE[_type]='eth'
+
+	if [[ ${HN[${hn}.ip]} == 0.0.0.0 ]]
+	then 
+		# dhcp ip ...
+		for cfg in BOOTPROTO='dhcp' IPADDR=''  NETMASK=''  _type='eth' USERCONTROL='no'
+		do
+			FILE["${cfg%%=*}"]="${cfg}"
+		done
+	else
+		# static ip ...
+		for cfg in BOOTPROTO='static' IPADDR=${HN[${hn}.ip]} NETMASK=${HN[${hn}.sn]} _type='eth' USERCONTROL='no'
+		do
+			FILE["${cfg%%=*}"]="${cfg}"
+		done
+	fi
+
+	# konfiguration schreiben ...
+
+	( for line in ${!FILE[*]}
+	  do
+	  	echo ${FILE[${line}]}
+  	  done  ) > ${f}
+
+done
+
+# hostnamen schreiben ...
+[[ -n ${HN[fqdn]} ]] && echo "${fqdn}" > /etc/HOSTNAME || die "$0:$LINENO no hostname set ..."
+
+# hostnamen in /etc/hosts eintragen ...
+cat <<-EOF > /etc/hosts.2step
+	#
+	# hosts         This file describes a number of hostname-to-address
+	#               
+	# Syntax:
+	#    
+	# IP-Address  Full-Qualified-Hostname  Short-Hostname
+	#
+	# generated by 2step install system $( date '+%Y/%m/%d %H:%M:%S' )
+	#
+	127.0.0.1       localhost
+	$( for fqdn in ${HN[fqdn.list]}
+	   do
+		fqdn=${fqdn%.}
+		echo "${HN[${fqdn}.ip]}	${fqdn} ${HN[${fqdn}.hn]}"
+
+		if [[ -n ${HN[${fqdn}.gw]} ]]
+		then
+			# 	defaultrouter.${HN[first.dn]} defaultrouter
+			# 45.250.232.10.in-addr.arpa domain name pointer zempinpc.se.dfs.de.
+			# Host 222.250.232.10.in-addr.arpa not found: 3(NXDOMAIN)
+			set -- $( get_lookup ptr ${HN[${fqdn}.gw]} )
+			if [[ $2 == hn=* ]]
+			then
+				hn=${2#*hn=}
+				echo "${HN[${fqdn}.gw]}	${hn} ${hn%%.*}"
+			fi
+		fi 
+
+	   done ) 
+	EOF
+
+cp /etc/hosts.2step /etc/hosts
+
+# dns konfiguration ...
+# dns konfiguration sichern ...
+# todo nur bei network installation gibt es eine resolv.saved.by.dhcpcd.<net>
+#      was ist bei einer nicht network installation ????
+
+# dns konfiguration schreiben ...
+( for hn in ${HN[fqdn.list]}		# konfiguration fuer alle hn=... , in eingelesener reihenfolge !
+  do
+	for dns in ${HN[${hn}.ns]//:/ }
+	do
+		echo nameserver $dns
+	done
+  done 
+  [[ -n ${HN[dn]} ]] && echo "domain ${HN[dn]}" ) > /etc/resolv.conf
+
+cp /etc/resolv.conf /etc/resolv.conf.saved.by.dhcpcd.${HN[install.interface]}
+cp /etc/resolv.conf /etc/resolv.conf.2step
+
+# routing konfiguration ....
+
+# default router schreiben ...
+# Change (PK) : default gateway tauch 2 mal auf, siehe unten, daher mal auskommentiert:
+
+#( [[ -n ${HN[${HN[fqdn]}.gw]} ]] && echo "default ${HN[${HN[fqdn]}.gw]} - -" ) > /etc/sysconfig/network/routes
+
+# statische routen eintragen ...
+
+( for hn in  ${HN[fqdn.list]}
+  do
+	[[ -z ${HN[${hn}.rt]} ]] && continue	# alle config parameter des hosts ...
+	
+
+	# dv=eth0 rt=ip:sn:gw:dv;ip:sn:gw:dv --> gruppenwechsel mit ';'
+
+	for rt in ${HN[$hn.rt]//\;/ }		# fuer jede statische route ...
+	do
+
+		set -- ${rt//:/ }
+
+		dst=${rt%%:*}						# ip destination ...
+		sn=${rt#*$dst:} ; sn=${sn%%:*}				# subnetmask ...
+		gw=${rt#*$sn:} ; gw=${gw%%:*}				# default gateway ...
+		dv=${rt#*$gw:} ; dv=${dv%%:*} ; [[ -z $dv ]] && dv='-'	# device/interface ...
+
+		echo "$dst $gw $sn $dv"
+
+	done
+  done 
+ 
+# default gateway ...
+  for hn in  ${HN[fqdn.list]}
+  do
+	[[ -z ${HN[${hn}.gw]} ]] && continue	# kein default gateway ...
+	echo "default ${HN[${hn}.gw]}  - - " 
+	break
+  done ) > /etc/sysconfig/network/routes 

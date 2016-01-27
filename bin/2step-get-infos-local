@@ -1,0 +1,1460 @@
+#!/usr/bin/ksh
+
+
+# debug mb
+
+DEBUG=0 ; [[ $DEBUG == *1* ]] && set -x		# set -x fuer das hauptprogramm ohne funktionen ...
+FDEBUG=0 ; [[ $FDEBUG == *1* ]] && set -x	# set -x fuer funktionen ...
+
+# get-2step-infos
+#
+# 
+# (c)  www.pixel-bit.de, markus braun
+#
+
+typeset WSPACE=' 	'				# whitespace: ' ', space or '	', tab
+
+# function part 
+function die
+{
+	typeset txt=$1
+	typeset ex=$2
+
+	echo "$txt" >&2
+	[[ -z $ex ]] && return 
+	exit $ex
+}
+
+function usage
+{
+		#
+		# --showonly:	 anzeige aller ermittelten werte, keine aenderung der konfiguration
+		# --no-lookups:  keine lookups durchfuehren, argumente ausschlieslich von /proc-cmdline
+		#                und $* verwenden
+		# --no-bootargs: keine argumente von /proc-cmdline verwenden
+		# --no-dhcp:     dhcp anfrage deaktivieren ...
+		# ...
+		cat <<-EOF
+		--showonly:    anzeige aller ermittelten werte, keine aenderung der konfiguration
+		--no-lookups:  keine lookups durchfuehren, argumente ausschliesslich von /proc-cmdline
+		               und \$* verwenden
+		--no-bootargs: keine argumente von /proc-cmdline verwenden
+		--no-dhcp:     dhcp anfrage deaktivieren ...
+		EOF
+		
+}
+
+function get_lookup_hosts
+{
+	typeset type=$1
+	typeset fqdn=$2
+	typeset hosts_line=""
+	typeset ip=""
+	typeset aliase=""
+	typeset h=""
+	typeset comment=""
+	typeset result=""
+
+	while read hosts_line
+	do
+
+		[[ ${hosts_line} == *([$WSPACE])\#* || -z ${hosts_line} ]] && continue		# kommentarzeile ...
+
+		set -- $hosts_line 
+
+		ip=$1 ; fqdn2="$2" ; aliase=${hosts_line#*${fqdn}} ; aliase=$( echo $aliase ) ; aliase=${aliase%%#*}
+
+		shift
+
+		case $type in 
+		txt|a)
+			# a-record lookup in /etc/hosts ...
+			for h in ${hosts_line%%\#*}
+			do
+				[[ ${fqdn} == ${h} ]] && break	
+				h=""
+			done
+			;;
+		ptr)
+			# ptr-record lookup in /etc/hosts ...
+			if [[ ${fqdn} == ${ip} ]]
+			then
+				h=${fqdn2} 
+			else
+				h=""
+			fi
+			;;
+		esac
+
+		[[ -z ${h} ]] && continue
+
+		comment=${hosts_line##*\#} ; [[ ${comment} == ${hosts_line} ]] && comment=""	# kein txt-record ...
+
+		case $type in
+		txt)
+			# lookup txt-record ...
+			result=" ${comment} "
+			break
+			;;
+
+		a)
+			# lookup a-record ...
+			result=ip=${ip}			# ip adresse ...
+			break
+			;;
+		ptr)
+			# lookup ptr-record ...
+			result=hn=${h}			# ifdqn der ip adresse ...
+			break
+			;;
+		esac
+
+		result=""
+			
+	done < ${HOSTS_FILE}
+
+	echo $result
+
+}
+
+function get_lookup_hosts_old
+{
+	typeset type=$1
+	typeset fqdn=$2
+	typeset hosts_line=""
+	typeset ip=""
+	typeset aliase=""
+	typeset h=""
+	typeset comment=""
+	typeset result=""
+
+	while read hosts_line
+	do
+
+		[[ ${hosts_line} == *([$WSPACE])\#* || -z ${hosts_line} ]] && continue		# kommentarzeile ...
+
+		set -- $hosts_line 
+
+		ip=$1 ; fqdn2="$2" ; aliase=${hosts_line#*${fqdn}} ; aliase=$( echo $aliase ) ; aliase=${aliase%%#*}
+
+		shift
+
+		case $type in 
+		txt|a)
+			# a-record lookup in /etc/hosts ...
+			for h in ${hosts_line%%\#*}
+			do
+				[[ ${fqdn} == ${h} ]] && break	
+				h=""
+			done
+			;;
+		ptr)
+			# ptr-record lookup in /etc/hosts ...
+			if [[ ${fqdn} == ${ip} ]]
+			then
+				hn=${fqdn2} 
+			else
+				h=""
+			fi
+			;;
+		esac
+
+		[[ -z ${h} ]] && continue
+
+		comment=${hosts_line#*\#} ; [[ ${comment} == ${hosts_line} ]] && comment=""	# kein txt-record ...
+
+		case $type in
+		txt)
+			# lookup txt-record ...
+			result=${comment}
+			break
+			;;
+
+		a)
+			# lookup a-record ...
+			result=ip=${ip}			# ip adresse ...
+			break
+			;;
+		ptr)
+			# lookup ptr-record ...
+			result=hn=${h}			# ifdqn der ip adresse ...
+			break
+			;;
+		esac
+
+		result=""
+			
+	done < ${HOSTS_FILE}
+
+	echo $result
+}
+
+function get_lookup_dns
+{ 
+
+	typeset type=$1
+	typeset fqdn=$2
+	typeset result=""
+	typeset pattern1=""
+	typeset pattern2=""
+
+		# nameserver erreichbar, lookup ueber dns ...
+		case $type in
+		txt)
+			# txt-record ... "*descriptive*text*" 
+			#-->lintest25.se.dfs.de descriptive text " dn=se.dfs.de gw=10.232.190.254 ns=10.232.250.190:10.232.250.190 sn=255.255.255.0 dv=eth0 \013"<---
+
+			if txt="$( host -W 5 -t $type ${fqdn} )"
+			then
+				while [[ $txt == *\"* ]]
+				do
+					txt=${txt#*\"}
+					[[ $txt != *\"* ]] && break
+					result=" $result ${txt%%\"*} "
+					txt=${txt#*\"}
+				done
+
+				result=${result#*\"} ; result=${result%\"*}	
+				result=${result//\\/}				# ; entfernen ...
+			else
+				txt=""
+				result=""
+			fi
+
+			;;
+		a)
+			# a-record ... "*has*dress*"
+			#-->#lintest25.se.dfs.de has address 10.232.250.25<-- 
+			pattern1=has ; pattern2=address
+			set -- $( host -W 7 -t $type ${fqdn} )
+
+			if [[ "$*" == *${pattern1}*${pattern2}* ]]
+			then
+				# antwort erhalten ...
+				eval result=\$$(( $# ))
+				result=ip=$result
+			else
+				# keine antwort erhalten ...
+				result=""
+			fi
+			;;
+
+		ptr)
+			# ptr-record ...
+			# -->161.250.232.10.in-addr.arpa domain name pointer chemnitz.se.dfs.de.
+			# -->Host 167.250.232.10.in-addr.arpa not found: 3(NXDOMAIN)
+			pattern1=Host ; pattern2='found:'
+			set -- $( host -W 7 -t $type ${fqdn} )
+			if [[ "$*" != *${pattern1}*${pattern2}* ]]
+			then
+				# antwort erhalten ...
+				result=hn=${5%.}
+			else
+				# keine antwort erhalten ...
+				result=""
+			fi
+			;;
+
+		esac
+
+	echo $result
+
+}
+
+function get_lookup
+{
+	[[ $FDEBUG == *1* ]] && set -x	# set -x fuer funktionen ...
+
+	HN[function.$0.call]="initial"
+
+	
+	typeset type=$1			# a,txt, (a-/txt-/ptr-record), oder ptr 
+	typeset fqdn=$2			# lookup von hostname/fqdn  ...
+	typeset result=""		# anfrage antwort ...
+	typeset s=""
+
+	if [[ -z ${HN[lookup.hosts.type.$type.fqdn.$fqdn]} ]]
+	then
+		# 1. lookup in /etc/hosts ...	# /etc/hosts ...
+		result=$( get_lookup_hosts $type $fqdn )
+		HN[lookup.hosts.type.$type.fqdn.$fqdn]="$result"
+
+	else
+		result="${HN[lookup.hosts.type.$type.fqdn.$fqdn]}"
+	fi
+
+	if [[ -z ${HN[lookup.hosts.type.$type.fqdn.$fqdn]} && ${DNS_OK} == yes ]]
+	then
+		if [[ -z ${HN[lookup.dns.type.$type.fqdn.$fqdn]} ]]
+		then
+			# 2. lookup in dns ...
+
+			result=$( get_lookup_dns $type $fqdn )
+
+			result=${result//+([$WSPACE])=+([$WSPACE])/=}
+			s=""
+
+			for result in "$result"
+			do
+				[[ $result != *=* ]] && continue
+				s=" $s $result"
+			done
+
+			result=$s
+
+			HN[lookup.dns.type.$type.fqdn.$fqdn]="$result"
+		else
+
+			result="${HN[lookup.dns.type.$type.fqdn.$fqdn]}"
+
+		fi
+	fi
+
+	echo "hn=$fqdn ${result} "
+
+}
+
+function get_lookup_old
+{
+	[[ $FDEBUG == *1* ]] && set -x	# set -x fuer funktionen ...
+	
+	typeset type=$1			# a,txt, (a-/txt-/ptr-record), oder ptr 
+	typeset fqdn=$2			# lookup von hostname/fqdn  ...
+	typeset result=""		# anfrage antwort ...
+	typeset s=""
+
+	if [[ -z ${HN[lookup.hosts.type.$type.fqdn.$fqdn]} ]]
+	then
+		# 1. lookup in /etc/hosts ...	# /etc/hosts ...
+		result=$( get_lookup_hosts $type $fqdn )
+		HN[lookup.hosts.type.$type.fqdn.$fqdn]="$result"
+
+	
+	else
+		result="${HN[lookup.hosts.type.$type.fqdn.$fqdn]}"
+
+	fi
+	if [[ -z ${HN[lookup.hosts.type.$type.fqdn.$fqdn]} && ${DNS_OK} == yes ]]
+	then
+		if [[ -z ${HN[lookup.dns.type.$type.fqdn.$fqdn]} ]]
+		then
+			# 2. lookup in dns ...
+
+			result=$( get_lookup_dns $type $fqdn )
+
+			result=${result//+([$WSPACE])=+([$WSPACE])/=}
+			s=""
+
+			for result in "$result"
+			do
+				[[ $result != *=* ]] && continue
+				s=" $s $result"
+			done
+
+			result=$s
+
+			HN[lookup.dns.type.$type.fqdn.$fqdn]="$result"
+		else
+
+			result="${HN[lookup.dns.type.$type.fqdn.$fqdn]}"
+
+		fi
+	fi
+
+	echo "hn=$fqdn ${result} "
+
+}
+
+function insert_lookup
+{
+	[[ $FDEBUG == *1* ]] && set -x	# set -x fuer funktionen ...
+
+	# funktion ermittelt einen txt-record (hn=...,cc=...)
+	# zum einfuegen eines verweises
+	# erstes argument wird abgeschnitten ...
+
+	[[ $FDEBUG == *1* ]] && set -x	# set -x fuer funktionen ...
+
+	typeset type=$1			# a,txt,ptr (a-/txt-/ptr-record)
+	typeset fqdn=$2			# lookup von hostname/fqdn  ...
+
+	set -- $( get_lookup $type ${fqdn} )	# liefert ausgabe "hn=... ... ..."
+
+	shift	# hn=... weg ...
+	
+	echo " $* "
+}
+
+function is_fqdn
+{
+	# funktion prueft ob host=fqdn ...
+
+	typeset fqdn=$1
+	typeset hosts_line=""
+	typeset fqdn2=""
+	typeset h=""
+
+		# 1. hosts lookup ...
+		while read hosts_line
+		do
+			set -- $hosts_line 
+
+			fqdn2="$2" 
+
+			for h in ${hosts_line%%\#*}			# ip fqdn alias1 alias2 ... # ....
+			do
+				if [[ ${fqdn} == ${h} ]] && [[ $h == $fqdn2 ]] 
+				then
+					return 0
+				fi
+			done
+
+		done < ${HOSTS_FILE}
+
+		# 2. dns lookup ...
+		if [[ $DNS_OK != yes ]]
+		then
+			return 1
+		fi
+
+		# host -t a $host
+		# dhcp10.se.dfs.de has address 10.232.250.10
+		set -- $( host -W 5 -t a $fqdn )
+
+		[[ $1 == $fqdn ]] && return 0 || return 1
+			
+}
+
+function is_fqdn_old
+{
+	# funktion prueft ob host=fqdn ...
+
+	typeset fqdn=$1
+	typeset hosts_line=""
+	typeset fqdn2=""
+	typeset h=""
+
+	if [[ -z ${HN[lookup.is.fqdn.$fqdn]} ]]
+	then
+
+		# 1. hosts lookup ...
+		while read hosts_line
+		do
+			set -- $hosts_line 
+
+			fqdn2="$2" 
+
+			for h in ${hosts_line%%\#*}			# ip fqdn alias1 alias2 ... # ....
+			do
+				if [[ ${fqdn} == ${h} ]] && [[ $h == $fqdn2 ]] 
+				then
+					HN[lookup.is.fqdn.$host]=0
+					return ${HN[lookup.is.fqdn.${fqdn}]}
+				fi
+			done
+
+		done < ${HOSTS_FILE}
+
+		# 2. dns lookup ...
+		if [[ $DNS_OK != yes ]]
+		then
+			HN[lookup.is.fqdn.${fqdn}]=1
+			return ${HN[lookup.is.fqdn.${fqdn}]}
+		fi
+
+		# host -t a $host
+		# dhcp10.se.dfs.de has address 10.232.250.10
+		set -- $( host -W 5 -t a $fqdn )
+
+		[[ $1 != $fqdn ]] && HN[lookup.is.fqdn.${fqdn}]=0 || HN[lookup.is.fqdn.${fqdn}]=1
+	fi
+
+	return ${HN[lookup.is.fqdn.${fqdn}]}
+			
+}
+
+function get_dn
+{
+	# funktion liefert aus einer argumentenkette den naechsten, zum
+	# hn=... eintrag passenden dn= 
+
+	typeset arg_list=$*
+	typeset dn=""
+
+	# hn= --> ist kein fqdn ...
+	# zum aktuellen hn= eintrag den zugehoerigen dn= eintrag finden ...
+
+	arg_list=${arg_list%%[${WSPACE}]hn=*}
+	dn=${arg_list#*dn=}
+
+	if [[ ${arg_list} != *dn=* ]]
+	then
+		dn=$DHCP_DOMAIN	# todo was ist bei dvd/cd oder usb installation mit DHCP_DOMAIN???
+	else
+		dn=${arg_list#*dn=}
+		#dn=${arg_list%%[${WSPACE}]*}
+		dn=${dn%%[${WSPACE}]*}
+	fi
+
+	echo ${dn}
+}
+
+function get_subnetmask
+{
+	[[ $FDEBUG == *1* ]] && set -x	# set -x fuer funktionen ...
+	# liefert die standard subnetmask in abhaengigkeit
+	# von der klasse einer ip adresse ...
+
+	typeset byte1=${1%%.*}		# 1. byte der ip adresse ...
+	typeset sn=255.255.255.0	# annahme ...	klasse c
+
+		(( byte1 <= 127 )) && sn=255.0.0.0			# klasse a
+		(( byte1 >= 128 && byte1 <= 191 )) && sn=255.255.0.0	# klasse b
+	echo $sn
+}
+
+function get_dhcp_interface
+{
+
+	[[ $FDEBUG == *1* ]] && set -x	# set -x fuer funktionen ...
+	# (dhcp) interface ermitteln --> kontakt zum installserver, auch fuer 4/mehr-port ethernet-karten ...
+	# aus /proc/net/dev
+	#
+	typeset netdev=""
+	typeset netdevices=""
+
+	if [[ -n ${HN[cache.scope.${.sh.fun}.netdev]} ]]
+	then
+		netdev=${HN[cache.scope.${.sh.fun}.netdev]}
+	else
+
+		while read netdev
+		do
+			if [[ "$netdev" == *:* ]]
+			then
+				netdev=${netdev%%:*}
+				netdev=${netdev##*\ }
+				netdevices=${netdevices}" ${netdev} "
+			fi
+		done < /proc/net/dev
+
+set -x
+		netdev=""
+		for netdev in ${netdevices//+(lo|sit0)/}
+		do
+
+			if dhcpcd -T -t 5 $netdev  | tee /tmp/${netdev}.dhcp | grep -i pixelbit > /dev/null 2>&1 # entgegen meiner ausdruecklichen warnung den ...
+			then
+				ifconfig $netdev > /tmp/${netdev}.ifconfig
+				break
+			else
+				rm /tmp/${netdev}.dhcp > /dev/null 2>&1
+			fi
+			netdev=""
+		done
+set +x
+
+		[[ -z ${netdev} ]] && die "no dhcp-server found for any interfaces:$netdevices"	# kein dhcp-server gefunden ...
+
+		HN[cache.scope.${.sh.fun}.netdev]=$netdev
+	fi
+
+	echo $netdev
+}
+
+function get_dhcp_values
+{
+	[[ $FDEBUG == *1* ]] && set -x	# set -x fuer funktionen ...
+
+	# dhcp-werte sourcen ...
+	#
+	typeset line=""
+	typeset netdev=$( get_dhcp_interface )
+	dhcp_interface=${netdev}
+
+	[[ ! -e /tmp/${netdev}.dhcp ]] && return	# kein dhcp antwort datei vorhanden ...
+
+	while read line
+	do
+		[[ $line == *[^\ ]=[^\ ]* ]] && eval DHCP_$line >&2 # dhcp antwort sourcen ...
+	done < /tmp/${netdev}.dhcp
+
+	#	example:
+	#	hcpcd: MAC address = 00:c0:9f:31:0a:92
+	#	IPADDR=10.232.250.11
+	#	NETMASK=255.255.255.0
+	#	NETWORK=10.232.250.0
+	#	BROADCAST=10.232.250.255
+	#	GATEWAY=10.232.250.253
+	#	DOMAIN='se.dfs.de'
+	#	DNS=10.200.30.140
+	#	DHCPSID=10.232.240.10
+	#	DHCPGIADDR=10.232.250.253
+	#	DHCPSIADDR=10.232.240.10
+	#	DHCPCHADDR=00:C0:9F:31:0A:92
+	#	DHCPSHADDR=00:30:F2:CA:51:B8
+	#	DHCPSNAME='pixelbit'
+	#	LEASETIME=7200
+	#	RENEWALTIME=3600
+	#	REBINDTIME=6300
+	#	INTERFACE='eth0'
+	#	CLASSID='Linux 2.6.8-24.14-default i686'
+	#	CLIENTID=00:C0:9F:31:0A:92
+
+	
+}
+
+function check_dns
+{
+	[[ $FDEBUG == *1* ]] && set -x	# set -x fuer funktionen ...
+	host -W 5 -t a localhost. > /dev/null 2>&1 && return 0 
+	return 1
+}
+function check_net
+{
+	[[ $FDEBUG == *1* ]] && set -x	# set -x fuer funktionen ...
+
+	typeset ip_line=""
+
+	#1: lo: <LOOPBACK,UP> mtu 16436 qdisc noqueue
+	#    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+	#    inet 127.0.0.1/8 brd 127.255.255.255 scope host lo
+	#2: eth0: <BROADCAST,MULTICAST,NOTRAILERS,UP> mtu 1500 qdisc pfifo_fast qlen 100
+	#    link/ether 00:1a:6b:36:68:d0 brd ff:ff:ff:ff:ff:ff
+	#    inet 172.16.1.100/16 brd 172.16.255.255 scope global eth0
+	#    inet 10.232.250.17/24 brd 10.232.250.255 scope global eth0:1
+
+	ip a | while read ip_line
+	do
+		[[ $ip_line != *([0-9]):*eth*([0-9]):*,UP* ]] && continue
+		return 0		# mind. ein ethX interface mit status 'up' ...
+	done
+	return 1
+}
+
+function get_all
+{
+	[[ $FDEBUG == *1* ]] && set -x	# set -x fuer funktionen ...
+
+	typeset hn=""
+	typeset ip_param=""
+	typeset old_hn=""
+	typeset prefix=""
+	typeset view=""
+	typeset varname=""
+
+	[[ " $* " == *--perl[${WSPACE}]* ]] && output_view=--perl
+
+	echo "#!/usr/bin/ksh"
+	echo "typeset -A HN"
+
+	# alle werte zum 1. fqdn als
+	# variablen ausgeben ...
+	set -- ${HN[fqdn.list]}
+
+	fqdn=$1			# primaerer fqdn 1. hn= eintrag ...
+
+	HN[fqdn]=$fqdn
+	HN[${fqdn}.fqdn]=$fqdn
+	HN[uname]=${fqdn%%.*}
+	HN[domain]=${fqdn#*.}
+	HN[dn]=${HN[domain]}
+	HN[hostname]=${HN[uname]}
+	HN[$fqdn.hn]=${HN[uname]}
+	HN[$fqdn.dn]=${HN[domain]}
+	[[ $USE_DHCP == yes ]] && HN[install.interface]=${dhcp_interface}	# install/dhcp interface ...
+	HN[install.interface.name]=${HN[install.interface]}
+	HN[dm]=$( get_mac_adress ${HN[install.interface]} )			# dm fuer dhcp macaddress ...
+	HN[install.interface.mac]=${HN[dm]}
+	HN[${fqdn}.dm]=${HN[dm]}
+
+
+	# autoyast/ay parameter ermitteln ...
+	# autoyast/ay parameter als bootparameter angegeben?
+
+	typeset -l lc=" ${HN[args.per.fqdn.${fqdn}]} "
+	typeset autoyast=""
+	typeset ay=""
+
+	if [[ ${lc} == *[$WSPACE]autoyast=* ]]		# autoyast ?
+	then
+		autoyast=${lc##*[$WSPACE]autoyast=}
+	else
+		autoyast=""
+	fi
+
+	if [[ ${lc} == *[$WSPACE]ay=* ]]		# ay ?
+	then
+		ay=${lc##*[$WSPACE]ay=}
+
+	else
+		ay=""
+	fi
+
+	# 2step intial boot verfahren:
+	# ay=... angabe der autoyast datei zur installation des client, bzw string zur generierung der autoyast xml datei
+	# autoyast=... angabe einer alternativen autoyast fuer das 2step intial boot, statt 2step.xml
+
+	#	if [[ -n ${ay} ]] 
+	#	then
+#			if [[ -n ${autoyast} ]] 
+#			then
+#				(( ${#ay} < ${#autoyast} )) && autoyast=$ay
+#			else
+#				autoyast=$ay
+#			fi
+#		fi
+
+	autoyast=${autoyast%%[$WSPACE]*}
+
+	# adressierung: kurzform, relativ oder absolut ...
+
+	# ay=nfs://xyz/abc.xml
+	# ay=abc.xml
+	# ay=subdir/xyz.xml
+	# ay=/some/other/path/subdir/xyz.xml
+
+	case $autoyast in
+	!(*.xml))
+		# zeichenkette zum bilden einer autoyast datei ueber das skript ay_build_xml.sh aus pre-script
+		;;
+	*://*)
+		# url ...
+		:
+		;;
+	/*)
+		# absolute adresse ...
+		autoyast=file://$autoyast
+		;;
+	'')
+		# 
+		autoyast=''
+		;;
+	*)
+		# relative adresse ...
+		autoyast=file:///srv/inst/cfg/autoyast/$autoyast
+		;;
+	esac
+
+	[[ -n $autoyast ]] && HN[${fqdn}.autoyast]=$autoyast
+
+	# install/is parameter ermitteln ...
+	# install/is parameter als bootparameter angegeben?
+	typeset is=""
+	typeset install=""
+
+	if [[ ${lc} == *[$WSPACE]install=* ]]		# autoyast ?
+	then
+		install=${lc##*[$WSPACE]install=}
+	else
+		install=""
+	fi
+
+	if [[ ${lc} == *[$WSPACE]is=* ]]		# ay ?
+	then
+		is=${lc##*[$WSPACE]is=}
+
+	else
+		is=""
+	fi
+
+	if [[ -n ${is} ]] 
+	then
+		if [[ -n ${install} ]] 
+		then
+			(( ${#is} < ${#install} )) && install=$is
+		else
+			install=$is
+		fi
+	fi
+
+	install=${install%%[$WSPACE]*}
+
+	# adressierung: kurzform, relativ oder absolut ...
+
+	# install=hd://dev/sdb7/srv/inst/sw/os/sles10sp2/
+	# is=/dev/sdb7:sles10sp2
+	# is=/dev/sdb7:/some/other/path/sles10sp2
+
+	case $install in
+	*://*)
+		:
+		;;
+	/*)
+		# absolute adresse ...
+		# install=/dev/sdb7:sles10sp2
+		if [[ ${install##*:} == /* ]]
+		then
+			# absolute adresse ...
+			install=hd:/${install%%:*}${install##*:}/
+		else
+			# relative adresse ...
+			install=hd:/${install%%:*}/srv/inst/sw/os/${install##*:}/
+		fi
+		;;
+	*)	# relativ ohne device
+		# install=sles10sp2
+		install=nfs://is01/srv/inst/sw/os/$install
+		;;
+	esac
+
+	HN[${fqdn}.autoyast]=$autoyast
+
+	if [[ -n $install ]]
+	then
+		HN[${fqdn}.install]=$install
+	fi
+
+	( for var in ${!HN[*]}
+	do
+		[[ ${var} != ${fqdn}.* ]] && continue
+
+		varname=${var##*.}
+
+		[[ -z ${varname} || ${varname} != [a-zA-Z0-9_]* || ${varname} == *[/\;\|,\\]*  ]] && continue
+
+		case  $output_view in 
+		--shell|"")
+			echo "${varname}=\"${HN[${var}]}\""
+			eval "${varname}=\"${HN[${var}]}\""
+			eval "HN[${varname}]=\"${HN[${var}]}\""
+			;;
+		--perl)
+			echo "\$${varname} = \"${HN[${var}]}\""\;
+			;;
+		--all)
+			echo "${varname}=\"${HN[${var}]}\""
+			eval "${varname}=\"${HN[${var}]}\""
+			eval "HN[${varname}]=\"${HN[${var}]}\""
+			echo "\$${varname} = \"${HN[${var}]}\""\;
+			;;
+		esac
+	done
+
+	for hn in ${!HN[*]}
+	do
+		# HN[lintest24.se.dfs.de.se.dfs.de.arglist]= dv=eth0  sn=255.255.255.0 \
+		#					gw=10.232.190.254  ns=10.232.250.190  dn=se.dfs.de
+		case  $output_view in 
+		--shell )
+			echo "HN[$hn]=\"${HN[$hn]}\""
+			;;
+		--perl )
+			echo "\$HN{\"$hn\"} = \"${HN[$hn]}\""\;
+			;;
+		--all)
+			echo "HN[$hn]=\"${HN[$hn]}\""
+			echo "\$HN{\"$hn\"} = \"${HN[$hn]}\""\;
+			;;	
+		esac
+
+	done ) | sort
+
+}
+
+
+function get_ethernet_devs
+{
+	# funktion erstellt eine liste von ethernet
+	# devices
+	typeset netdevs=""
+
+	netdevs=$( cd /sys/class/net ; echo eth* )
+
+	echo ${netdevs//*\*/}
+
+}
+
+function get_address
+{
+	typeset cmd=$1
+	typeset ip=$2
+	typeset sn=$3
+	typeset oIFS=$IFS
+	typeset ip1=""
+	typeset ip2=""
+	typeset ip3=""
+	typeset ip4=""
+	typeset sn1=""
+	typeset sn2=""
+	typeset sn3=""
+	typeset sn4=""
+	typeset nw1=""
+	typeset nw2=""
+	typeset nw3=""
+	typeset nw4=""
+	typeset oIFS=$IFS
+	
+	IFS=$IFS.
+	set -- $2 $3
+	IFS=$oIFS
+
+	ip1=$1 ; ip2=$2 ; ip3=$3 ; ip4=$4
+
+	sn1=$5 ; sn2=$6 ; sn3=$7 ; sn4=$8
+
+	case $cmd in
+	*broadcast*|*bc*)
+		bc1=$(( ip1 | $(( 255 - sn1 )) ))
+		bc2=$(( ip2 | $(( 255 - sn2 )) ))
+		bc3=$(( ip3 | $(( 255 - sn3 )) ))
+		bc4=$(( ip4 | $(( 255 - sn4 )) ))
+		echo "$bc1.$bc2.$bc3.$bc4"
+		;;
+	*network*|*nw*)
+		nw1=$(( ip1 & sn1 ))
+		nw2=$(( ip2 & sn2 ))
+		nw3=$(( ip3 & sn3 ))
+		nw4=$(( ip4 & sn4 ))
+		echo "$nw1.$nw2.$nw3.$nw4"
+		;;
+	esac
+}
+
+function get_mac_adress
+{
+	typeset dev=$1			# falls nicht gesetzt wird das erste ethernet interface welches von ip link show angezeigt wird verwendet!
+	typeset mac=""
+
+	if [[ -n $dev ]] 
+	then
+		#2: eth0: <BROADCAST,MULTICAST,UP> mtu 1500 qdisc pfifo_fast qlen 1000
+		#    link/ether 00:18:f3:f3:00:43 brd ff:ff:ff:ff:ff:ff
+		mac=$( ip link show $dev )
+		mac=${mac#*ether[$WSPACE]}
+		mac=${mac%%[$WSPACE]*}
+	else
+		mac=""
+	fi
+
+	echo $mac
+}
+
+function group_list_new
+{
+	# funktion teilt die argumentenkette in gruppen zu
+	# key/hn=.../cc=... eintraege auf
+	# jeder einzelne key eintrag wird als fqdn.list eintrag
+	# im array HN[] abgelegt ...
+
+	typeset -r key=" $1 "		# kann hn oder cc sein ...
+	shift 1
+	typeset list=" $* "		# argumentenliste ... normalisiert beginnt mit hn=...
+	typeset pre_key=""
+	typeset post_key=""
+	typeset current_key=""		# aktuelle gruppe ...
+	typeset next_key=""
+	typeset key_values=""
+	typeset last_dn=""
+	typeset dn=""
+
+	# liste normalisieren
+	pre_key=${list%%[$WSPACE]${key}=*}" "	# args vor dem 1. hn= eintrag ...
+	set -- ${list#$pre_key}
+	current_hn=$1 ; shift
+	list=" $current_hn $pre $* "
+	list=" $( echo $list ) "		# mehrere leerzeichen/tab trenner reduzieren auf jeweils ein ...
+
+	# liste aufteilen in separate key=... gruppen ...
+
+	# hn= gruppe ...
+	current_key=${list#*[${WSPACE}]${key}=*[${WSPACE}]}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	while [[ $list == *[$WSPACE]$key=* ]]
+	do
+		# list=" hn=lintest24 hn=lintest24a ip=UUUUUUUUUUUUUUUUUUUUU "
+
+		pre_key=${list%%[$WSPACE]$key=*}
+
+		post_key=" "${list#*[$WSPACE]${key}=*[$WSPACE]}		# args nach dem 1. key= eintrag ...
+		post_key=${post_key%%[$WSPACE]${key}=*}" "
+
+		current_key=${list#*[$WSPACE]${key}=}			#
+		current_key=${current_key%%[$WSPACE]*}			# args des naechsten key= eintrages
+
+		if [[ ${list} == *[$WSPACE]$key=*[$WSPACE]$key=*  ]]	
+		then
+
+			# es existiert mind. ein weiterer $key=... eintrag ...
+			next_key="${list#*[$WSPACE]$key=} "		
+			next_key=" $key=${next_key#*[$WSPACE]$key=} "
+
+		else
+			# kein weiterer $key=... eintrag ...?
+			next_key=""
+		fi
+			
+		list=" $( echo $next_key ) "
+
+		key_values=" $pre_key $post_key "
+
+		# zum aktuellen key=... eintrag den zugehoerigen dn=... eintrag finden ...
+		if [[ $key_values == *[${WSPACE}]dn=* ]]
+		then
+			# es existiert ein dn=... eintrag ..
+			# dn=... eintrag vorhanden
+			dn=${key_values##*[$WSPACE]dn=}			# letzter dn=.. eintrag fuer diese key=... gruppe ....
+			dn=${dn%%[$WSPACE]*}
+			last_dn=$dn
+		fi
+		# es existiert kein dn=... eintrag ..
+		# letzten dn=... annehmen oder DHCP_DOMAIN
+		if [[ -z $dn ]]
+		then
+			if is_fqdn ${current_key}
+			then
+				dn=${current_key#*.}
+			else
+				[[ -z $last_dn ]] && last_dn=$( get_domain_name ${_2step_default} )
+				dn=${last_dn}
+			fi
+		fi
+
+		current_key=${current_key%%.*}
+		fqdn=$current_key.$dn
+
+		if [[ ${HN[fqdn.list]} != *[$WSPACE]${fqdn}[$WSPACE]* ]]
+		then
+			HN[fqdn.list]="${HN[fqdn.list]} ${fqdn} "
+			# neuer fqdn ...
+			# default txt-record des fqdn einfuegen sowie txt-record des fqdn ...
+			key_values=" $( insert_lookup txt ${_2step_default}.${fqdn#*.} ) \
+				$( insert_lookup a ${fqdn} ) hn=${fqdn%%.*} dn=${dn} $( insert_lookup txt ${fqdn}\
+				 ) $key=$fqdn $key_values "
+
+			if [[ $key_values == *[$WSPACE]$key=*[$WSPACE] ]]
+			then
+				list=" $list $key=${key_values#*[$WSPACE]$key=} "
+				key_values=${key_values%%[$WSPACE]$key=*}
+			fi
+			
+		fi
+
+		HN[args.per.fqdn.$fqdn]="${HN[args.per.fqdn.$fqdn]} $( echo $key_values ) "
+
+	done
+
+}
+
+function group_list
+{
+	# funktion teilt die argumentenkette in gruppen zu
+	# key/hn=.../cc=... eintraege auf
+	# jeder einzelne key eintrag wird als fqdn.list eintrag
+	# im array HN[] abgelegt ...
+
+	typeset -r key=$1		# kann hn oder cc sein ...
+	shift 1
+	typeset list=" $* "		# argumentenliste ... normalisiert beginnt mit hn=...
+	typeset pre_key=""
+	typeset post_key=""
+	typeset current_key=""		# aktuelle gruppe ...
+	typeset next_key=""
+	typeset key_values=""
+	typeset last_dn=""
+	typeset dn=""
+
+	# liste aufteilen in separate key=... gruppen ...
+	while [[ $list == *[$WSPACE]$key=* ]]
+	do
+		# list=" hn=lintest24 hn=lintest24a ip=UUUUUUUUUUUUUUUUUUUUU "
+
+		pre_key=${list%%[$WSPACE]$key=*}
+
+		post_key=" "${list#*[$WSPACE]${key}=*[$WSPACE]}		# args nach dem 1. key= eintrag ...
+		post_key=${post_key%%[$WSPACE]${key}=*}" "
+		current_key=${list#*[$WSPACE]${key}=}			#
+		current_key=${current_key%%[$WSPACE]*}			# args des naechsten key= eintrages
+
+		if [[ ${list} == *[$WSPACE]$key=*[$WSPACE]$key=*  ]]	
+		then
+
+			# es existiert mind. ein weiterer $key=... eintrag ...
+			next_key="${list#*[$WSPACE]$key=} "		
+			next_key=" $key=${next_key#*[$WSPACE]$key=} "
+
+		else
+			# kein weiterer $key=... eintrag ...?
+			next_key=""
+		fi
+			
+		list=" $( echo $next_key ) "
+
+		key_values=" $pre_key $post_key "
+
+		[[ ${current_key} == *.* ]] && is_fqdn ${current_key} && dn=${current_key#*.} || dn=""
+
+		# zum aktuellen key=... eintrag den zugehoerigen dn=... eintrag finden ...
+		if [[ -z $dn && $key_values == *[${WSPACE}]dn=* ]]
+		then
+			# es existiert ein dn=... eintrag ..
+			# dn=... eintrag vorhanden
+			dn=${key_values##*[$WSPACE]dn=}			# letzter dn=.. eintrag fuer diese key=... gruppe ....
+			dn=${dn%%[$WSPACE]*}
+			last_dn=$dn
+		fi
+
+		# es existiert kein dn=... eintrag ..
+		# letzten dn=... annehmen oder DHCP_DOMAIN
+		if [[ -z $dn ]]
+		then
+			if is_fqdn ${current_key}
+			then
+				echo "$current_key ist fqdn"
+				dn=${current_key#*.}
+			else
+				echo "$current_key ist kein fqdn" >&2
+				[[ -z $last_dn ]] && last_dn=$( get_domain_name ${_2step_default} )
+				dn=${last_dn}
+			fi
+		fi
+
+		current_key=${current_key%%.*}
+		fqdn=$current_key.$dn
+
+		if [[ ${HN[fqdn.list]} != *[$WSPACE]${fqdn}[$WSPACE]* ]]
+		then
+			HN[fqdn.list]="${HN[fqdn.list]} ${fqdn} "
+			# neuer fqdn ...
+			# default txt-record des fqdn einfuegen sowie txt-record des fqdn ...
+			key_values=" $( insert_lookup txt ${_2step_default}.${fqdn#*.} ) \
+				     $( insert_lookup a ${fqdn} ) hn=${fqdn%%.*} dn=${dn} \
+				     $( insert_lookup txt ${fqdn} ) $key=$fqdn $key_values "
+			if [[ $key_values == *[$WSPACE]$key=*[$WSPACE] ]]
+			then
+				list=" $list $key=${key_values#*[$WSPACE]$key=} "
+				key_values=${key_values%%[$WSPACE]$key=*}
+			fi
+			
+		fi
+
+		# entwerten von sonderzeichen: \ " ; : ) ( ] [
+
+		key_values="${key_values//[\;\"\(\)]/\\${.sh.match[0]}}"
+
+		HN[args.per.fqdn.$fqdn]="${HN[args.per.fqdn.$fqdn]} $( echo $key_values ) "
+
+	done
+
+}
+
+function expand_list
+{
+	# funktion expandiert die hn=... und cc=... 
+	# eintraege einer liste ...
+	# die liste ist zugehoerig eines hn=... eintrage
+	# und enthaelt alle argumente zu diesem ...
+	
+	typeset -r fqdn=$1 ; shift
+	typeset list=" $* "
+	typeset key=""
+	typeset pre_key=""
+	typeset post_key=""
+	typeset current_key=""
+	typeset key_values=""
+	typeset next_key=""
+	typeset dn=""
+	typeset arg=""
+	typeset expanded_cc=""
+
+	list=" ${list//+([$WSPACE])=+([$WSPACE])/=} "	# normalisieren xxx  =   yyyy ---> xxx=yyy
+	HN[fqdn.list.new]=""
+
+	# expandieren ...
+	
+	# alle cc=... eintraege ...
+	# list=' .... cc=x ... cc=y .... cc=z ... '
+
+	while [[ $list == *[$WSPACE]cc=* ]]
+	do
+		key='cc'						# separator cc=... oder hn=...
+		pre_key=${list%%[$WSPACE]${key}=*}			# args vor dem 1. key= eintrag ...
+		post_key=" "${list#*${key}=*[$WSPACE]}			# args nach dem 1. key= eintrag ...
+		post_key=${post_key%%[$WSPACE]${key}=*}" "
+		current_key=${list#*[$WSPACE]${key}=}			#
+		current_key=${current_key%%[$WSPACE]*}			# args des naechsten key= eintrages
+		key_values=" $pre_key $post_key "
+		next_key=${list#*[$WSPACE]$key=$current_key}		# key=... gruppe von links abschneiden ...
+
+		if [[ $current_key == *.* ]] && is_fqdn $current_key
+		then
+			# ...
+			dn=${current_key#*.}
+		else
+			# key/cc kein fqdn ...
+			# dn fuer cc  ermitteln
+			if [[ $key_values == *[${WSPACE}]dn=* ]]
+			then
+				# es existiert ein dn=... eintrag ..
+				# dn=... eintrag vorhanden
+				dn=${key_values##*[$WSPACE]dn=}		# letzter dn=.. eintrag fuer diese hn=... gruppe ....
+				dn=${dn%%[$WSPACE]*}
+			else
+				# es existiert kein dn=... eintrag ..
+				# domain name von $fqdn annehmen ...
+				dn=${fqdn#*.}
+			fi
+		fi
+
+		if [[ ${expanded_cc} != *[${WSPACE}]${current_key}.${dn}[${WSPACE}]* ]]
+		then
+			list=" $( insert_lookup txt $current_key ) "
+			eval set -- ${list//[\;\(\)]/\\${.sh.match[0]}}
+			not_key="hn="
+			list=""
+			for arg in "$@"
+			do
+				[[ $arg == ${not_key}* ]] && continue
+				list="$list $arg "
+			done
+
+			list=" $pre_key ${list} $post $next_key "
+		else
+			expanded_cc="$expanded_cc $current_key.$dn "
+			list=" $pre_key $post_key $next_key "
+		fi
+
+	done
+
+	# alle hn=... eintraege ...
+	# list=' .... hn=x ... hn=y .... hn=z ... '
+
+	while [[ $list == *[$WSPACE]hn=* ]]
+	do
+
+	 	key='hn'							# separator hn=... oder hn=...
+		pre_key=${list%%[$WSPACE]${key}=*}				# args vor dem 1. key= eintrag ...
+		post_key=" "${list#*${key}=*[$WSPACE]}				# args nach dem 1. key= eintrag ...
+		current_key=${list#*[$WSPACE]${key}=}				#
+		current_key=${current_key%%[$WSPACE]*}				# args des naechsten key= eintrages
+
+		if [[ $current_key == *.* ]] && is_fqdn $current_key
+		then
+			# ...
+			dn=${current_key#*.}
+			current_key=${current_key%%.*}
+		else
+				# domain name vom 1. $fqdn annehmen ...
+				dn=${fqdn#*.}
+		fi
+
+		if [[ ${HN[fqdn.list]} != *[$WSPACE]${current_key}.${dn}[$WSPACE]* ]]
+		then
+			# neuer fqdn ...
+			# txt-record des fqdn einfuegen ...
+			HN[fqdn.list.new]="${HN[fqdn.list.new]} ${current_key}.${dn} "	# liste der neuen fqdn ...
+			HN[fqdn.list]="${HN[fqdn.list]} ${current_key}.${dn} "
+			key_values=" $( insert_lookup a ${current_key}.${dn} ) dn=${dn} $( insert_lookup txt ${current_key}.${dn} ) "
+
+		fi
+
+		HN[args.per.fqdn.${current_key}.${dn}]=" ${HN[args.per.fqdn.${current_key}.${dn}]} $( echo $key_values ) "
+		HN[args.per.fqdn.${fqdn}]=" ${HN[args.per.fqdn.${fqdn}]} $pre_key "
+
+		list=" ${post_key} "
+
+	done
+}
+
+function get_domain_name
+{
+	# funktion ermittelt den domain name wenn
+	# dieser nicht mit dn=... angegeben wurde.
+	# der default domain name wird aus der namensaufloesung
+	# ueber ${_2step_default} ermittelt (relative angabe ohne domainname).
+	typeset host=$1
+	typeset dn=""
+
+	dn=$( get_lookup txt $host )
+	if [[ ${dn} == *[$WSPACE]dn=* ]]
+	then
+		dn=${dn##*+([$WSPACE])dn=}
+		dn=${dn%%[$WSPACE]*}
+	else
+		dn=""
+	fi
+
+	echo ${dn}
+}
+
+function parse_options 
+{
+	typeset pos_parameter=$*
+
+	if [[ $pos_parameter == *--* ]]
+	then
+
+		# optionen auswerten ...
+		for i in $@
+		do
+			case $i in
+			 --help)
+				usage
+				exit
+				;;
+			--perl)
+				output_view=$i
+				pos_parameter=${pos_parameter//$i/ }
+				;;
+			--shell)
+				output_view=$i
+				pos_parameter=${pos_parameter//$i/ }
+				;;
+			--no-dhcp)
+				USE_DHCP=no
+				;;
+			--no-bootargs)
+				continue
+				;;
+			--*)
+				usage
+				exit
+				;;
+			*)
+				continue
+				;;
+			esac
+
+		done
+
+	else
+
+		# keine optionen angegeben ...
+		# default setzen ... 
+		output_view='--shell'
+
+	fi
+}
+
+# main 
+
+# global var ...
+
+typeset -r _2step_default='2step-cc'			# hostname fuer den txt-record der default werte 
+typeset pos_parameter=" $* "				# uebergebene positionsparameter ...
+typeset BOOT_PARAMETER_FILE=/proc/cmdline		# kernel/boot parameter beim start der installation ...
+[[ -f /proc-cmdline ]] && BOOT_PARAMETER_FILE=/proc-cmdline
+typeset -r BOOT_PARAMETER_FILE=${BOOT_PARAMETER_FILE}
+typeset boot_parameter="" 				# ... 
+typeset HOSTS_FILE=/etc/hosts
+
+[[ -f /srv2/inst/cfg/dns/hosts/master.hosts ]] && HOSTS_FILE='/srv2/inst/cfg/dns/hosts/master.hosts'
+[[ -f /srv/inst/cfg/dns/hosts/master.hosts ]] && HOSTS_FILE='/srv/inst/cfg/dns/hosts/master.hosts'
+
+typeset fqdn=""						# fqdn aus $hn.$dn 
+typeset ip_param=""					# ...
+typeset hn=""						# ...
+typeset sn=""						# ...
+typeset DNS_OK="no"					# yes --> dns server erreichbar, no --> nicht erreichbar ...
+typeset NET_OK="no"					# yes --> dns server erreichbar, no --> nicht erreichbar ...
+typeset USE_DHCP="yes"					# yes --> dhcp server verwenden ...
+
+typeset -A HN						# HN array aller ip konfigurationsparameter der einzelnen hostnames (hn=...) ...
+typeset output_view="--shell"				# default ausgabe in shell syntax ...
+
+# DHCP_DOMAIN=se.dfs.de	# nur fuer debug zwecke ...
+
+# ermittlung der konfigurationsparameter, letzter wert gewinnt ...
+#
+# - 1. txt-record von 2step-cc.<domain> (fuer alle ip parameter moeglich, ausnahme: hn )
+# - 2. a-record zum fqdn namen		(nur ip moeglich)
+# - 3. txt-record zum fqdn namen	(fuer alle ip parameter moeglich)
+# - 4. bootparameter			(fuer alle ip parameter moeglich)
+# - 5. positionsparameter		(fuer alle ip parameter moeglich)
+
+
+parse_options "$pos_parameter"
+
+if [[ -f ${BOOT_PARAMETER_FILE} && $pos_parameter != *([$WSPACE])--no-bootargs*([$WSPACE])* ]]
+then
+	boot_parameter=" $(<${BOOT_PARAMETER_FILE}) "
+else
+	pos_parameter=${pos_parameter//--no-bootargs/ }
+fi
+
+[[ -n $boot_parameter ]] && boot_parameter=" ${boot_parameter//+([$WSPACE])=+([$WSPACE])/=} "	# normalisieren xxx  =   yyyy ---> xxx=yyy
+
+list=" $pos_parameter $boot_parameter "
+list=" ${list//+([$WSPACE])=+([$WSPACE])/=} "	# normalisieren xxx  =   yyyy ---> xxx=yyy
+
+[[ $list != *[$WSPACE]hn=* ]] && die "kein hn=... argument angegeben, exit ..." 1
+
+# 0. nameserver erreichbar ? ...
+# check net/dns ...
+check_net && NET_OK=yes || NET_OK=no	# netzwerkfaehigkeit vorhanden ?
+check_dns && DNS_OK=yes || DNS_OK=no	# dns server erreichbar ?
+
+# daten ermitteln ...
+
+# zuvor pruefen, ob netzwerkfunktionalitaet gegeben ist ...
+
+if [[ $NET_OK == yes && $USE_DHCP == yes ]] 
+then
+	get_dhcp_values 		# sourcen der dhcp antwort ...
+fi
+
+# idee:
+# liste um hn=... und cc= eintrage expandieren ...
+
+group_list hn $list	# liste wird in gruppen zu hn=... eintraegen in das array HN gespeichert ...
+
+HN[fqdn.list.new]=once
+while [[ -n ${HN[fqdn.list.new]} ]]
+do
+	for fqdn in ${HN[fqdn.list]}
+	do
+		expand_list $fqdn ${HN[args.per.fqdn.$fqdn]} 
+	done
+
+done
+
+# HN eintraege weiter normalisieren ....
+
+for fqdn in ${HN[fqdn.list]}
+do
+
+	eval set -- ${HN[args.per.fqdn.$fqdn]//[\#\;:\(\)]/\\${.sh.match[0]}}
+	for arg in "$@"
+	do
+		if [[ $arg != *=* ]]
+		then
+			HN[$fqdn.${arg}]="$arg"
+			continue
+		fi
+
+		var=${arg%%=*}
+		value=${arg#*=}
+		HN[$fqdn.${var}]="$value"
+	done
+
+	[[ -z ${HN[${fqdn}.hn]} ]] && HN[${fqdn}.hn]=${fqdn%%.*}
+
+done
+
+get_all $output_view 
+#| while read line
+#do
+#	echo "$line"
+#	eval "$line"
+#done
+
+#for hn in ${!HN[*]}
+#do
+#	echo HN[$hn]=${HN[$hn]}
+#done
