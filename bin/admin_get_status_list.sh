@@ -20,6 +20,11 @@
 # psp3-s1.te1.lgn.dfs.de unknown                  unreachable     # not network connection, try WOL on home domain and all remote doamins  
 # psp4-s1.te1.lgn.dfs.de unknown                  nss_unreachable # not network connection to nss of resource domain and not found on remote domains
 #
+# Changes: 
+#   13.01.2016 check existence of previous target_config_list , than existence og status list and take assignment for first guess when searching resource nscs
+#
+#
+
 # <2step>
 . /etc/2step/2step.vars
 #
@@ -35,18 +40,18 @@ typeset resource_fqdn
 typeset resource_dn
 typeset resource_hn
 typeset -A RESOURCE_MACS
-typeset -A CURRENT_FQDNS
-typeset -A STATUS
+typeset -A PREVIOUS_TARGET_FQDN
+typeset -A PREVIOUS_STATUS
 typeset arg1=$1
+typeset search_type
+typeset found
 
 source ${confdir}/remote_nsc.cfg # providing:  subtype, ResourceDomainServers, RemoteDomainServers
 typeset AllDomainServers=$(echo $RemoteDomainServers $ResourceDomainServers | sed 's/\s+*/\n/g' |  sort -u )
 
 resource_nsc_list_file=${vardir}/resource_nsc.list
 nsc_status_list_file=${vardir}/nsc_status.list
-
-# HIER ist noch was faul !
-# diese Funktion muss die hartkodierten "nss.<dn>" statements erseten wenn nss-mgt statt nss auftritt !!!
+target_config_list_previous_file=${vardir}/target_config.list.previous
 
 function get_domain_server_hn
 {
@@ -87,6 +92,33 @@ function check_nsc_status
   fi
 }
 
+
+function deep_search
+{
+	echo "deep search: try LOCAL first ....."
+	resource_status=$(check_nsc_status $resource_fqdn)
+
+	if [[ $resource_status == "ssh-ok" ]]; then
+		echo "$resource_fqdn $resource_fqdn available" | tee -a $nsc_status_list_file
+		found=1
+	else
+		echo "search for $resource_fqdn in all remote domains..."
+	
+		for remote_domain_server in $RemoteDomainServers
+		do
+			echo "SEARCH ON $remote_domain_server"
+			resource_status_in_remote_domain=$(ssh $remote_domain_server "${bindir}/nss_manage_remote_nsc.sh status $resource_fqdn --force_search")
+			if [[ -n $resource_status_in_remote_domain ]]; then
+				echo "$resource_fqdn $resource_status_in_remote_domain" | tee -a $nsc_status_list_file
+				found=1
+				break
+			fi
+		done
+	fi
+}
+
+# MAIN
+
 echo "\n<< Create Resource NSC Status (List) .. This may take a while, be patient !!  >>\n" >&2
 
 if [[ ! -f $resource_nsc_list_file ]]; then
@@ -107,65 +139,89 @@ do
   RESOURCE_FQDNS_ALL="$RESOURCE_FQDNS_ALL $fqdn"
 done < $resource_nsc_list_file
 
-# read nsc_status_list if available
-if [[ -f $nsc_status_list_file ]] ; then
+# read target_config_list if available
+# else read nsc_status_list_file
+# for first guess as current status
+
+
+if [[ -f $target_config_list_previous_file ]] ; then
+  echo "found previous target config list"
+  echo "taking entrys as first trial to check status ..."
   while read line
   do
     [[ $line == \#* ]] && continue
     set -- $line
     resource_fqdn=$1
-    current_fqdn=$2
-    status=$3
-    CURRENT_FQDNS[$resource_fqdn]=$current_fqdn
-    STATUS[$resource_fqdn]=$status
+    remote_fqdn=$2
+    #target_option==$3
+    PREVIOUS_TARGET_FQDN[$resource_fqdn]=$remote_fqdn
+  done < $target_config_list_previous_file
+  search_type=direct
+elif [[ -f $nsc_status_list_file ]] ; then
+  echo "NO previous target config list found."
+  echo "but found old status list. taking entrys as first trial to check status ..."
+  while read line
+  do
+    [[ $line == \#* ]] && continue
+    set -- $line
+    resource_fqdn=$1
+    remote_fqdn=$2
+    #status=$3 allways old
+    PREVIOUS_TARGET_FQDN[$resource_fqdn]=$remote_fqdn
   done < $nsc_status_list_file
-fi
-
-if [[ -n $arg1 ]]; then
-  RESOURCE_FQDNS=$arg1
+  search_type=direct
 else
-  RESOURCE_FQDNS=$RESOURCE_FQDNS_ALL
+  echo "NO previous target config list found."
+  echo "NO status list found."
+  echo "making a deep search ...."
+  search_type=deep
 fi
 
-[[ -f  $nsc_status_list_file ]] && mv $nsc_status_list_file ${nsc_status_list_file}.previous 
+# rename old nsc_status_list_file
 
-for resource_fqdn in $RESOURCE_FQDNS
+[[ -f $nsc_status_list_file ]] && mv $nsc_status_list_file ${nsc_status_list_file}.previous
+
+# doing the search
+
+for resource_fqdn in $RESOURCE_FQDNS_ALL
 do
   found=0
   resource_dn=${resource_fqdn#*.}
   resource_hn=${resource_fqdn%%.*}
-  
-  echo "ping $resource_fqdn in default domain ..."
-  resource_status=$(check_nsc_status $resource_fqdn)
-  current_fqdn=${CURRENT_FQDNS[$resource_fqdn]}
 
-  if [[ $resource_status == "ssh-ok" ]]; then
-    echo "$resource_fqdn $resource_fqdn available" | tee -a $nsc_status_list_file
-    found=1
-  elif [[ -n $current_fqdn && $current_fqdn != "unknown" ]] ; then
-    echo "  try previuos domain for $resource_fqdn ..."  
-    remote_status=$(check_nsc_status ${CURRENT_FQDNS[$resource_fqdn]} ) 
-    if [[ $remote_status == "ssh-ok" ]]; then
-      echo "$resource_fqdn $current_fqdn occupied" | tee -a $nsc_status_list_file
-      found=1
-    fi
-  fi
+  if [[ $search_type == "direct" ]]; then
+	previous_fqdn=${PREVIOUS_TARGET_FQDN[$resource_fqdn]}
+	[[ $previous_fqdn == "default" ]] && previous_fqdn=$resource_fqdn
 
-  if (( $found == 0 )); then
-    echo "found=$found : search for $resource_fqdn in all remote domains..."
-    for remote_domain_server in $RemoteDomainServers
-    do
-      echo "LOOK ON $remote_domain_server"
-      resource_status_in_remote_domain=$(ssh $remote_domain_server "${bindir}/nss_manage_remote_nsc.sh status $resource_fqdn --force_search")
-      if [[ -n $resource_status_in_remote_domain ]]; then
-        echo "$resource_fqdn $resource_status_in_remote_domain" | tee -a $nsc_status_list_file
-        found=1
-        break
-      fi
-    done
-    (( $found==0 )) && echo "$resource_fqdn unknown unreachable" | tee -a  $nsc_status_list_file
-  fi
-  echo
-done  
+	echo "assume $resource_fqdn configured as $previous_fqdn"
+	echo
+	if [[ $previous_fqdn == "unknown" ]]; then
+		echo "... try LOCAL"
+		previous_fqdn=$resource_fqdn
+	fi
+	resource_status=$(check_nsc_status $previous_fqdn)
 
+	if [[ $resource_status == "ssh-ok" ]]; then
+		if [[ $previous_fqdn == $resource_fqdn ]]; then
+			echo "$resource_fqdn $resource_fqdn available" | tee -a $nsc_status_list_file
+			found=1
+		else
+			echo "$resource_fqdn $previous_fqdn occupied" | tee -a $nsc_status_list_file
+			found=1
+		fi
+	fi
+
+
+	if (( $found == 0 )); then
+		deep_search
+	fi
+
+  else # search_type=deep
+	deep_search
+fi
+
+(( $found==0 )) && echo "$resource_fqdn unknown unreachable" | tee -a  $nsc_status_list_file
+
+done
 echo "Done."
+
