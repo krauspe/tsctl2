@@ -1,0 +1,18 @@
+# default: on
+# description: A server which does several admin tasks in 2step environment
+# Author: Peter.Krauspe@dfs.de
+
+service tsctl2
+{
+        type            = UNLISTED
+        id              = tsctl-stream
+        socket_type     = stream
+        protocol        = tcp
+        port            = 65003
+        user            = root
+        wait            = no
+        disable         = no
+        FLAGS           = IPv6 IPv4
+        server          = /opt/dfs/tsctl2/bin/tsctl.server
+}
+

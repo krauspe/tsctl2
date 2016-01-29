@@ -95,26 +95,26 @@ function check_nsc_status
 
 function deep_search
 {
-	echo "deep search: try LOCAL first ....."
-	resource_status=$(check_nsc_status $resource_fqdn)
+  echo "deep search: try LOCAL first ....."
+  resource_status=$(check_nsc_status $resource_fqdn)
 
-	if [[ $resource_status == "ssh-ok" ]]; then
-		echo "$resource_fqdn $resource_fqdn available" | tee -a $nsc_status_list_file
-		found=1
-	else
-		echo "search for $resource_fqdn in all remote domains..."
-	
-		for remote_domain_server in $RemoteDomainServers
-		do
-			echo "SEARCH ON $remote_domain_server"
-			resource_status_in_remote_domain=$(ssh $remote_domain_server "${bindir}/nss_manage_remote_nsc.sh status $resource_fqdn --force_search")
-			if [[ -n $resource_status_in_remote_domain ]]; then
-				echo "$resource_fqdn $resource_status_in_remote_domain" | tee -a $nsc_status_list_file
-				found=1
-				break
-			fi
-		done
-	fi
+  if [[ $resource_status == "ssh-ok" ]]; then
+    echo "$resource_fqdn $resource_fqdn available" | tee -a $nsc_status_list_file
+    found=1
+  else
+    echo "search for $resource_fqdn in all remote domains..."
+  
+    for remote_domain_server in $RemoteDomainServers
+    do
+      echo "SEARCH ON $remote_domain_server"
+      resource_status_in_remote_domain=$(ssh $remote_domain_server "${bindir}/nss_manage_remote_nsc.sh status $resource_fqdn --force_search")
+      if [[ -n $resource_status_in_remote_domain ]]; then
+      	echo "$resource_fqdn $resource_status_in_remote_domain" | tee -a $nsc_status_list_file
+      	found=1
+      	break
+      fi
+    done
+  fi
 }
 
 # MAIN

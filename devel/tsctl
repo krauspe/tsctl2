@@ -1,0 +1,26 @@
+#!/usr/bin/ksh
+##
+#
+# Peter Krauspe (c) 6/2015
+#
+# 2step control web application server control script 1.0 :-))
+#
+##
+
+source /etc/2step/2step.vars
+
+usage="usage: $(basename $0) <host> <cmd>"
+
+if [[ -n $1 ]] ; then
+  host=$1
+  if [[ -n $2 ]] ; then
+    QSTRING=${2}${flag}
+  else
+    QSTRING=help
+  fi
+else
+  echo $usage
+  exit 1
+fi
+
+echo $QSTRING | netcat $host 65002

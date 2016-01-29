@@ -1,0 +1,211 @@
+#!/usr/bin/ksh
+
+##
+#
+# Peter Krauspe (c) 6/2015
+#
+# 2step control server 1.0 
+#
+##
+#
+# Changes:
+#
+#    29.08.2015: absoluten Pfad fuer nsc_adm etc eingesetzt falls das root env fuer xinetd (wie in br1) nicht korrekt ist (PATH)
+#
+
+read QUERY_STRING
+
+# 2step
+if [[ -f /etc/2step/2step.vars ]]; then
+  . /etc/2step/2step.vars >/dev/null
+else
+  echo "/etc/2step/2step.vars NOT FOUND !! . EXITING !"
+  exit 1
+fi
+
+export PATH=$PATH:/nss/home/remote_adm/bin
+
+if [[ -n $QUERY_STRING ]]; then
+  QSTRING=$QUERY_STRING
+else
+  QSTRING=$1
+fi
+
+typeset -i cmd_ok=1
+
+typeset dev=eth0
+
+function usage
+{
+  case $type in 
+
+    nss)
+      echo " " 
+      echo "2step control server 1.0 ($hn)"
+      echo " " 
+      echo "Usage (command argument): "
+      echo " " 
+      echo "  nsc-add::psp100-s1:00:d0:c9:b6:a7:e5  # add nsc host"
+      echo "  nsc-del::psp100-s1                    # delete nsc host"
+      echo "  nsc-query                             # list nsc hosts"
+      echo "  get-info                              # show version of application server"
+      echo "  get-cmd                               # test"
+      echo "  get-path                              # test"
+      echo " " 
+      echo "add '.html' to command to get html output. "
+      echo "example for NSS: nsc-query.html"
+      ;;
+    nsc|ws)
+      echo " " 
+      echo "2step control server 1.0 ($hn)"
+      echo " " 
+      echo "Usage:  (command argument)"
+      echo " " 
+      echo "  reset                                 # reset host to stanby config"
+      echo "  status                                # show target config after next boot"
+      echo "  reboot                                # reboot host"
+      echo " " 
+      echo "add '.html' to command to get html output. "
+      echo "example: status.html"
+      echo " " 
+      ;;
+  esac
+  echo
+  #echo "QSTRING=$QSTRING"
+  #echo "pcmd=$pcmd"
+  #echo "h=$h"
+}
+
+function run_cmd   # run cmd and return plain or html output
+{
+  pcmd=$1
+  cmd=$2
+  if [[ $pcmd == *html* ]]; then
+    echo "Content-type: text/html"
+    echo ""
+    echo "<html lang=\"en\" dir=\"ltr\"><head><title>2STEPCTL</title></head><body>"
+    echo
+      $cmd | sed 's/$/<br>/'
+    echo
+    echo "</body></html>"
+  elif [[ $pcmd == *show* ]]; then
+      echo "SHOW: $cmd"
+  else
+      #echo "EXECUTING $cmd"
+      $cmd 
+  fi
+}
+ 
+function nsc_add   # add host to newsim.all.hosts and system.all.hosts
+{
+  h=$1
+  mac=$2
+  nsc_adm add $h nsc:$mac
+  nsc_adm add $h sys:$mac
+}
+ 
+function nsc_del   # del host from newsim.all.hosts and system.all.hosts
+{
+  h=$1
+  nsc_adm del $h nsc
+  nsc_adm del $h sys
+}
+
+function get_mac_from_cache # get mac from /nss/home/remote_adm/config/newsim.all.hosts
+{
+  typeset host=$1
+  typeset mac
+  typeset x=$(nsc_adm -q nsc mac | grep $host)
+  mac=${x#$host* }
+  echo $mac
+}
+
+function get_mac_from_host # get mac from local or remote host
+{
+  typeset host=$1
+  typeset dev=$2
+  typeset -l mac
+
+  ping -c 1 $host > /dev/null 2>&1
+
+  if (( $? == 0 )); then
+    cmd="ifconfig $dev | grep HWaddr"
+    [[ -n $2 ]] && cmd="ssh $host $cmd"
+    x=$($cmd)
+    mac=${x#*HWaddr }
+  else
+    mac=""
+  fi
+  echo $mac
+}
+
+function get_mac
+{
+  typeset host=$1
+  typeset dev=$2
+  typeset retval
+
+  typeset mac_cached=$(get_mac_from_cache $host)
+  typeset mac_current=$(get_mac_from_host $host $dev)
+
+  if [[ -n $mac_current ]]; then
+    retval="$mac_current:mac(current)"
+  elif [[ -n $mac_cached ]]; then
+    retval="$mac_cached:mac(cached)"
+  else
+    retval=""
+  fi
+
+  if [[ $mac_cached != $mac_current ]] ; then
+    retval="$mac_current::warning, cached and current values differ !!"
+  fi
+  echo $retval
+}
+
+# process command and args
+
+x=${QSTRING#*c=}
+pcmd=${x%::*}
+hmac=${x#*::}
+mac=${hmac#*:}
+h=${hmac%%:*}
+[[ $h == $pcmd ]] && h=''
+h=${h%%.*}.${dn}
+
+case $type in 
+
+  nss)
+    case $pcmd in
+      nsc-add*)    cmd="nsc_add $h $mac"          ;;
+      nsc-del*)    cmd="nsc_del $h"               ;;
+      nsc-query*)  cmd="nsc_adm -q nsc mac"       ;;
+      get-env*)    cmd="env"                      ;;
+      get-cmd*)    cmd="echo \"pcmd=$pcmd h=$h\"" ;;
+      get-path*)   cmd="echo $PATH"               ;;
+      get-mac*)    cmd="get_mac $h $dev"          ;;
+      get-info*)   cmd="echo  tsctl server V1.0 running on $(hostname). "  ;;
+      *)	   cmd_ok=0                       ;;
+    esac
+    ;;
+
+  nsc|ws)
+    case $pcmd in
+      reset*)   cmd="rcreconfigure_nsc reset"  ;;
+      status*)  cmd="rcreconfigure_nsc status" ;;
+      reboot*)  cmd="rcreconfigure_nsc reboot" ;;
+      get-dn*)  cmd="rcreconfigure_nsc get:dn" ;;
+      get-ip*)  cmd="rcreconfigure_nsc get:ip" ;;
+      *)	cmd_ok=0                       ;;
+    esac
+    ;;
+  *)                cmd="echo \"NO commands for type $type available !\""
+  ;;
+    
+esac
+
+if (( $cmd_ok == 1 )); then
+  run_cmd "$pcmd" "$cmd" 
+else
+  usage
+fi
+  

@@ -1,0 +1,29 @@
+# place force_reconfigure at end of line to reconfigure when occpied
+#
+# Possible remote nsc fqdns
+#
+# psp101-s1.te1.lgn.dfs.de
+# psp102-s1.te1.lgn.dfs.de
+# psp103-s1.te1.lgn.dfs.de
+# psp104-s1.te1.lgn.dfs.de
+# psp101-s1.lx1.lgn.dfs.de
+# psp102-s1.lx1.lgn.dfs.de
+# psp103-s1.lx1.lgn.dfs.de
+# psp104-s1.lx1.lgn.dfs.de
+# psp101-s1.lx3.lgn.dfs.de
+# psp102-s1.lx3.lgn.dfs.de
+# psp103-s1.lx3.lgn.dfs.de
+# psp104-s1.lx3.lgn.dfs.de
+#
+# Assign just by adding a remote nsc after the resource nsc
+#
+# RESOURCE-NSC (the physical machine)	REMOTE-NSC (the hostname in the remote system)
+#
+psp1-s1.te1.lgn.dfs.de
+psp2-s1.te1.lgn.dfs.de
+psp3-s1.te1.lgn.dfs.de
+psp4-s1.te1.lgn.dfs.de
+psp5-s1.lx1.lgn.dfs.de
+psp6-s1.lx1.lgn.dfs.de
+psp7-s1.lx3.lgn.dfs.de psp101-s1.te1.lgn.dfs.de
+psp8-s1.lx3.lgn.dfs.de psp102-s1.lx1.lgn.dfs.de

@@ -1,0 +1,164 @@
+#!/usr/bin/ksh
+#
+# (c) Peter Krauspe 10/2015
+#
+# This script should run on an admin machine.
+# It should start the remote reconfiguration of a single or all hosts of a list which assigns resource fqdns to remote fqdns
+# ... under development....(22.10.2015)
+# TODO: 28.10: check new version of nsc_adm add / -q etc !!
+#
+# <2step>
+. /etc/2step/2step.vars
+#
+dbg=echo
+dbg=""
+dev=eth0
+# ggfs spaeter aus config file
+basedir=/opt/dfs/tsctl2
+bindir=${basedir}/bin
+confdir=${basedir}/config
+vardir=${basedir}/var
+typeset -A RESOURCE_MACS
+typeset -A CURRENT_FQDNS
+typeset -A STATUS
+
+
+source ${confdir}/remote_nsc.cfg # providing:  subtype, ResourceDomainServers, RemoteDomainServers
+
+resource_nsc_list_file=${vardir}/resource_nsc.list   # all nscs from all resource domains: <resource-nsc-fqdn> <resource-mac-address>
+nsc_status_list_file=${vardir}/nsc_status.list       # discovered : <resource-nsc-fqdn> <current-fqdn> <status>
+target_config_list_file=${vardir}/target_config.list # wanted     : <resource-nsc-fqdn> <remote-fqdn>
+
+echo "\n<< Reconfigure Resource NSC's >>\n"
+
+if [[ ! -f $target_config_list_file ]]; then
+  echo "\n  $target_config_list_file doesn't exist. exiting !\n"
+  exit 1
+fi
+
+if [[ ! -f $resource_nsc_list_file ]]; then
+  echo "  $resource_nsc_list_file not found, create it .."
+  ${bindir}/admin_get_resource_nsc_list.sh
+fi
+
+# read resource_nsc_list ################
+while read line
+do
+  [[ $line == \#* ]] && continue
+  set -- $line
+  fqdn=$1
+  mac=$2
+  RESOURCE_MACS[$fqdn]=$mac  
+done < $resource_nsc_list_file
+
+# read nsc_status_list ################
+while read line
+do
+  set -- $line
+  resource_fqdn=$1
+  current_fqdn=$2
+  status=$3
+  CURRENT_FQDNS[$resource_fqdn]=$current_fqdn  
+  STATUS[$resource_fqdn]=$status  
+done < $nsc_status_list_file
+
+## TODO: check target_config_list ################
+#
+#${bindir}/admin_check_target_config.sh
+#if (( $?i >0 )); then
+#  echo "CHECK $target_config_list_file !!!!"
+#  exit 1
+#fi
+
+
+# read target_config_list ################
+while read line
+do
+  echo "LINE=$line"
+  [[ $line == \#* ]] && continue # skip comment lines
+  set -- $line 
+  resource_fqdn=$1
+  remote_fqdn=$2 
+  [[ -z $remote_fqdn ]] && continue  # skip lines without assignment
+  target_option=$3 
+  echo "TAKE:<$resource_fqdn> <$remote_fqdn> <$target_option>"
+
+  echo "EXECUTING: $resource_fqdn => $remote_fqdn ($target_option)"
+  resource_domain_server=nss.${resource_fqdn#*.}
+  current_fqdn=${CURRENT_FQDNS[$resource_fqdn]}
+  current_domain_server=nss.${current_fqdn#*.}
+  remote_domain_server=nss.${remote_fqdn#*.}
+  resource_dn=${resource_fqdn#*.}
+  current_dn=${current_fqdn#*.}
+  remote_dn=${remote_fqdn#*.}
+
+  ready_for_reconfiguration=0
+
+  if [[ $current_fqdn == $remote_fqdn && $target_option != "force_reconfigure" ]] ; then
+    echo "current config of $resource_fqdn is already $remote_fqdn and no force option set. Nothing to do."
+  elif [[ $current_fqdn == "unknown" ]] ; then
+    echo "current config of $resource_fqdn is UNKNOWN. can not configure !!. Check host !!"
+  elif [[ ${STATUS[$resource_fqdn]} == "occupied" ]] ; then
+    if [[ $target_option == "force_reconfigure" ]] ; then
+      echo "reconfigure $resource_fqdn (currently $current_fqdn) AGAIN as $remote_fqdn due to force option"
+      ready_for_reconfiguration=1
+    else
+      echo "$resource_fqdn is occupied as $current_fqdn and no force option is set. Ignoring."
+    fi
+  else
+    echo "  reconfigure $resource_fqdn (currently $current_fqdn) as $remote_fqdn through $current_domain_server"
+    ready_for_reconfiguration=1
+  fi
+
+
+  if (( $ready_for_reconfiguration == 1 )); then
+
+    # RECONFIGURE AND REBOOT
+    echo "FAKE:  ssh $current_domain_server ssh $current_fqdn ${bindir}/nsc_reconfigure.sh $remote_fqdn reboot"
+    #ssh $current_domain_server "ssh $current_fqdn ${bindir}/nsc_reconfigure.sh $remote_fqdn reboot"
+    echo "  rebooting ..."
+
+    # SWITCH VLAN 
+
+    #echo "  switch vlan for $resource_fqdn into $remote_dn"
+    #cmd="$bindir/control_rem_pil_test_net.sh -c $remote_dn  $resource_fqdn"
+    #echo "  $cmd"
+    #$cmd >/dev/null 
+
+    # UNREGISTER ON CURRENT AND REGISTER ON NEW DOMAIN ON SUCCESSFUL VLAN SWITCH
+ 
+
+    if (( $? == 0 )); then # HIER: NUR 1 MAL AUSGEFUEHRT WENN alle $cmd NICHT AUSKOMMENTIERT sind !!??
+
+      echo "  UNREGISTER $current_fqdn from $current_domain_server"
+      cmd="ssh $current_domain_server nsc_adm del ${current_fqdn} nsc"
+      #$cmd > /dev/null
+
+      if [[ $remote_fqdn != $resource_fqdn ]]; then
+        echo "  UNREGISTER $current_fqdn on $current_domain_server additionally as REMOTE NSC"
+        #cmd="ssh $current_domain_server nsc_adm del ${current_fqdn} rnsc"
+        cmd="ssh localhost uptime"
+        echo "  $cmd"
+        #$cmd > /dev/null
+        ssh localhost uptime
+      fi
+
+      echo "  REGISTER $remote_fqdn on $remote_domain_server as REGULAR NSC"
+      cmd="ssh $remote_domain_server nsc_adm add ${remote_fqdn} nsc:${RESOURCE_MACS[$resource_fqdn]}"
+      #$cmd > /dev/null
+
+      if [[ $remote_fqdn != $resource_fqdn ]]; then
+        echo "  REGISTER $remote_fqdn on $remote_domain_server additionally as REMOTE NSC"
+        cmd="ssh $remote_domain_server nsc_adm add ${remote_fqdn} rnsc:${RESOURCE_MACS[$resource_fqdn]} resource_fqdn=$resource_fqdn"
+        #echo "  $cmd"
+        #$cmd > /dev/null
+      fi
+    else
+      echo "  switch vlan FAILED. $remote_fqdn will NOT be registered on $remote_domain_server !!"
+    fi
+  fi
+
+  echo "-----------------------------------------------------------------------------------------\n"
+done < $target_config_list_file
+
+
