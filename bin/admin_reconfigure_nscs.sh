@@ -14,7 +14,7 @@
 #
 #  13.01.2016: Use different scripts for vlan switching, depending on usage in test (lx3) or production environment (sysman1)
 #  18.01.2016: create backup of target_config_list with postfix ".previous"
-#  27.01.2016: do update nsc_status_list after target config list check to improve performance if errors where found
+#  29.01.2016: creating previous target config list AFTER get status list. Bevore was wrong, because get status script uses this
 #
 # TODO: look at ../TODO.TXT
 #
@@ -120,9 +120,6 @@ echo "\n<< Reconfigure Resource NSC's >>\n"
 if [[ ! -f $target_config_list_file ]]; then
   echo "\n  $target_config_list_file doesn't exist. exiting !\n"
   exit 1
-else
-  echo "  backup target config list as $target_config_list_previous_file"
-  cp $target_config_list_file $target_config_list_previous_file
 fi
 
 # ensure existence of resource_nsc_list 
@@ -236,6 +233,11 @@ fi
  echo "\nCREATE/UPDATE nsc_status_list\n" 
  echo "(this may take a while)\n" 
  ${bindir}/admin_get_status_list.sh
+
+# create target_config_list_previous_file
+
+echo "  backup target config list as $target_config_list_previous_file"
+cp $target_config_list_file $target_config_list_previous_file
 
 
 # read nsc_status_list ################
