@@ -1,0 +1,23 @@
+Refreshing service 'SMT-http_lin-nup_prod_bk_dfs'.
+Loading repository data...
+Reading installed packages...
+
+
+Information for package gnome-desktop:
+
+Repository: SUSE-Linux-Enterprise-Desktop-11-SP2 11.2.2-1.193
+Name: gnome-desktop
+Version: 2.28.2-0.6.18
+Arch: i586
+Vendor: SUSE LINUX Products GmbH, Nuernberg, Germany
+Support Level: Level 3
+Installed: Yes
+Status: up-to-date
+Installed Size: 764.0 KiB
+Summary: The GNOME Desktop API Library
+Description:
+This package contains the libgnome-desktop library thatcontains APIs that really belong in libgnome/libgnomeui but have notseen enough testing or development to be considered stable. Use them atyour own risk.
+
+Also contained here are documents installed as part of thecore GNOME distribution: the GPL, GNOME's .desktop files, thegnome-about program, some man pages, and GNOME's core graphics files andicons.
+
+

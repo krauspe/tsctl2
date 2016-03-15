@@ -1,10 +1,28 @@
-hn=$(hostname)
-x=$(host -t txt $hn)
-echo $x | grep "rnsc=1" >/dev/null
-if [[ $? == 0 ]]; then
+#-------------------------------------------------------------------------------
+# common section
+#-------------------------------------------------------------------------------
+# located at the top of the newsim_bash_ext
+# Remote Piloting
+host -t txt $(hostname) | grep "rnsc=1" > /dev/null 2>&1
+if [ "$?" == "0" ]; then
     echo "$(date) setting local environment for remote PSPs" >> /tmp/remote_psp.log
-    export ATC_JAVA6=/opt/ufa/java/...
-    export ATC_JAVA_BIN=/opt/ufa/java/...
-    export ATC_JAVA=/opt/ufa/java/...
-    export ATC_JAVA6_BIN=/opt/ufa/java/...
+    export LOCAL_STORAGE_PATH=/tmp/localStore/$(dnsdomainname | sed -e 's/\..*//')
+    export NEWSIM_SYSTEM_CONFIG_FILE=$LOCAL_STORAGE_PATH/newsim.cfg
+    export ATC_JAVA=/opt/ufa/java/jdk-1.8.0_45/jre
+    export ATC_JAVA_BIN=$ATC_JAVA/bin
+
+    export ATC=$LOCAL_STORAGE_PATH/atcoach/
+    export ATC_LCL=$ATC
+    export ATC_JARDIR=$ATC/bin/jar/
+    export ATC_UFAHELP=$ATC/ufadoc
+    export ATC_LIBDIR=$ATC/bin/lib
+
+    # needed to override Bennies LD_LIBRARY_PATH path setting which takes effect for sinatra
+    export LD_LIBRARY_PATH=$ATC_LIBDIR:$LD_LIBRARY_PATH
+
+    # naxos muss vor ATCoach stehen, damit das richtige start_vcs gefunden wird
+    # es wird nicht der gesamte PATH modifiziert, sondern nur die wichtigen Dinge vorne in Pfad gestellt
+    # so wird vermieden dass wir bei Aenderungen komplett auf die Nase fallen
+    export PATH=/nss/home/spv/newsim_rel1/active_release/depot/naxos/bin:$ATC/bin:$ATC_JAVA_BIN:$PATH
 fi
+

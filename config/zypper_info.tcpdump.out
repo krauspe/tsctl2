@@ -1,0 +1,21 @@
+Refreshing service 'SMT-http_lin-nup_prod_bk_dfs'.
+Loading repository data...
+Reading installed packages...
+
+
+Information for package tcpdump:
+
+Repository: SUSE-Linux-Enterprise-Desktop-11-SP2 11.2.2-1.193
+Name: tcpdump
+Version: 3.9.8-1.21
+Arch: i586
+Vendor: SUSE LINUX Products GmbH, Nuernberg, Germany
+Support Level: Level 3
+Installed: Yes
+Status: up-to-date
+Installed Size: 653.0 KiB
+Summary: A Packet Sniffer
+Description:
+This program can "read" all or only certain packets going overthe ethernet. It can be used to debug specific network problems.
+
+

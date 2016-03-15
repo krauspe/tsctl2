@@ -1,0 +1,21 @@
+Refreshing service 'SMT-http_lin-nup_prod_bk_dfs'.
+Loading repository data...
+Reading installed packages...
+
+
+Information for package dfs_remotePiloten_appHandling:
+
+Repository: apps
+Name: dfs_remotePiloten_appHandling
+Version: 1.1-2
+Arch: noarch
+Vendor:
+Support Level: unknown
+Installed: No
+Status: not installed
+Installed Size: 19.0 KiB
+Summary: Package of useful scripts for simsys
+Description:
+script needed to put some stuff for remote piloting locally instead of NFS
+
+Requires: bash rsync insserv nfs-kernel-server autofs
