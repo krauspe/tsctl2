@@ -7,23 +7,30 @@ vardir=${basedir}/var
 
 typeset -Al zypper_info
 typeset -A repo_url
-
 typeset -l k
+typeset WSPACE=' 	'
 
 unset http_proxy
 unset https_proxy
 
 
-RPMS="dfs_remotePiloten_appHandling gnome-desktop tcpdump"
+RPMS="dfs_remotePiloten_appHandling"
 
+# result=${result//+([$WSPACE])=+([$WSPACE])/=}
 
-function initRepoURL {
-	#TODO: hat noch ein Problem wegen dem reponamen Feld : ist zT ein version string drin , daher key falsch !!
-  #zypper lr -pu  | cut -d '|' -f 3,7) | while read line
-  cat ${confdir}/zypper_lr_pu.out | cut -d '|' -f 3,7 | while read line
+function initRepoURLs {
+	#TODO: hat noch ein Problem wegen dem reponamen Feld:
+	#TODO: ist zT zusaetzlich ein version string drin dann kommt "|" als field 7 !!
+
+  #zypper lr -pu  | while read line
+  cat ${confdir}/zypper_lr_pu.out | while read line
   do
-		set -- $line
-		[[ -n $1 ]] && repo_url[$1]="$3"
+		key=$(echo $line |  cut -d '|' -f 3)
+		val=$(echo $line |  cut -d '|' -f 7)
+		key=${key//[$WSPACE]/""}
+		val=${val//[$WSPACE]/""}
+		#echo "$key|$val"
+		repo_url[$key]="$val"
   done
 }
 
@@ -44,17 +51,16 @@ function getRpmURL {
 	rpm=$1
   initZypperInfo $rpm
   repo=${zypper_info["repository"]}
+  #repo=${repo//[$WSPACE]/""}
 	baseurl=${repo_url[$repo]}
 	version=${zypper_info["version"]}
 	arch=${zypper_info["arch"]}
-  echo "-- $rpm --"
-	echo "repo=$repo"
-	echo "baseurl=$baseurl"
-	echo "version=$version"
-	echo "arch=$arch"
-	echo "url=${baseurl}/${arch}/${rpm}-${version}.${arch}.rpm"
-	echo
-	echo
+#  echo "-- $rpm --"
+#	echo "repo=$repo"
+#	echo "baseurl=$baseurl"
+#	echo "version=$version"
+#	echo "arch=$arch"
+	echo "${baseurl}/${arch}/${rpm}-${version}.${arch}.rpm"
 }
 
 # functions for nsc
@@ -69,18 +75,15 @@ function getRpmInfo {
   else
   	installed="No"
 	fi
-
-  return $out
+	echo $out
 }
 
 
-#echo "#######################################"
-#echo "USE getRpmInfoFromZypper"
-
-initRepoURL
+initRepoURLs
 
 for rpm in $RPMS
 do
-	getRpmURL $rpm
+  url=$(getRpmURL $rpm)
+	echo $url
 done
 
