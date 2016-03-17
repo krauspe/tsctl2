@@ -24,6 +24,10 @@
 #             - new option: --update-resources:
 #               forces update of resource nsc list even if it exists, without this option an existing list will not be overwritten
 #             - added calling script "admin_get_rpms_from_repo.sh" which copies rpms to var/install from Repo for local install on NSC's
+#             - changed cmdline handling: missing "deploy" string in first argumemt disables deploment to NSCs (independent of :<option>)
+#
+#TODO: check changed cmdline handling for certain cases
+#
 # <2step>
 . /etc/2step/2step.vars
 #
