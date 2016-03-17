@@ -6,7 +6,8 @@
 #
 # Create 2step.vars files for the given fqdn (to create it's network configuration)
 #
-
+# Currently NOT used !! (17.03.2016)
+#
 # <2step>
 . /etc/2step/2step.vars
 #
