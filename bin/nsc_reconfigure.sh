@@ -21,9 +21,9 @@
 #  24.11.2015: added kill procs function
 #  01.12.2015: added "default" option (=reset) 
 #  14.01.2016: changed order: 2step-netconfig -> multicast
+#  17.03.2016: added call nsc_manage_rpms.sh local | $remote_dn
 #
 #
-
 
 #<2step>
 source /etc/2step/2step.vars
@@ -50,6 +50,7 @@ function my_print
 if [[ -n $1 ]]; then
   if [[ $1 == "reset" || $1 == "default" || $1 == ${hn}.${dn} ]] ; then
     twostep_vars=/etc/2step/2step.vars
+    ${bindir}/nsc_manage_rpms.sh local
   elif [[ $1 == "list" ]] ; then
     echo "\npossible arguments are:\n"
     cat $remote_nsc_list
@@ -68,6 +69,9 @@ if [[ -n $1 ]]; then
         echo "$twostep_vars NOT found !!, SKIPPING."
         exit 1
       fi
+    #
+    ${bindir}/nsc_manage_rpms.sh $remote_dn
+
     else
       echo "reconfigure failed! We need an FQDN ! SKIPPING."
       echo "hn=$hn"
