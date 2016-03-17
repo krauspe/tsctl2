@@ -3,8 +3,7 @@
 # runs on NSC's
 # will be called from nsc_reconfigure.sh and installs/removes a special rpm which handles app caching
 #
-# TODO: current args are "local" and "remote" . Change this to "local" and <target-fqdn>"
-# TODO: then get dn from fqdn and check if dn is in $AppCacheEnabledDomains
+# TODO: check if everything works
 #<2step>
 source /etc/2step/2step.vars
 
@@ -58,11 +57,18 @@ function removeClientRpm {
 
 # check if caching is enabled for target  domain
 
-echo $AppCacheEnabledDomains | grep $dn > /dev/null 2>&1
+typeset mode
 
-if [[ $? != 0 ]]; then
-  echo "App cache rpm management is NOT enabled on this daomin. skipping"
-  exit
+if [[ $1 == *local* ]]; then
+	mode=local
+else
+  echo $AppCacheEnabledDomains | grep $1 > /dev/null 2>&1
+	if [[ $? != 0 ]]; then
+		echo "App cache rpm management is NOT enabled on this daomin. skipping"
+		exit
+	else
+		mode=remote
+	fi
 fi
 
 # check wether client_rpm is installed or not
@@ -85,14 +91,14 @@ client_rpm_file=$(ls -tr ${instdir}/${client_rpm_name}*.rpm 2>/dev/null| tail -1
 
 # install/remove rpm depending on reconfiguration target
 
-if [[ $1 == *local* ]]; then
+if [[ $mode == *local* ]]; then
 	if [[ $rpm_installed -eq 1 ]]; then
 		echo "we reconfigure to local, $client_rpm_name is installed. Going to remove it"
 		removeClientRpm $client_rpm_name
 	else
 		echo "we reconfigure to local, $client_rpm_name is not installed. nothing to do."
 	fi
-elif  [[ $1 == *remote* ]];then
+elif  [[ $mode == *remote* ]];then
 	if [[ $rpm_installed -eq 0 ]]; then
 	  echo "we reconfigure to remote. $client_rpm_name is not installed, Going to install it."
 		installClientRpm $client_rpm_file
