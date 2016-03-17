@@ -20,8 +20,10 @@
 #             - changed option for ssh keys from "aks" to "keys"
 # 15.01.2016: - changed ssh key handling: deployment nss script ensures authorized key file with root public key and keys from all other nss'es
 #               (without backup, which is no longer necessary)
-#
-
+# 17.03.2016: - deploy all nsc_* scripts to NSCs (bevor only the reconfigure script)
+#             - new option: --update-resources:
+#               forces update of resource nsc list even if it exists, without this option an existing list will not be overwritten
+#             - added calling script "admin_get_rpms_from_repo.sh" which copies rpms to var/install from Repo for local install on NSC's
 # <2step>
 . /etc/2step/2step.vars
 #
@@ -33,25 +35,28 @@ basedir=/opt/dfs/tsctl2
 bindir=${basedir}/bin
 confdir=${basedir}/config
 vardir=${basedir}/var
+instdir=${vardir}/install
 remote_nsc_list_file=${vardir}/remote_nsc.list
 typeset -A ResDomServer
 
 source ${confdir}/remote_nsc.cfg # providing:  subtype, ResourceDomainServers, RemoteDomainServers
+[[ -f ${confdir}/remote_nsc.${dn}.cfg ]] && source ${confdir}/remote_nsc.${dn}.cfg # read domain specific cfg
 
 arg1=$1
 arg2=$2
 
 if [[ $# < 2 ]]; then
-   echo "usage: $(basename $0) <action>  [RemoteNSC-list]"
+   echo "usage: $(basename $0) <action>  <all|RemoteNSC> [--update-resources]"
    echo "   eg: $(basename $0) deploy:all       all   # create , collect  and deploy configs , and scripts (NO public keys) to all Servers and ResourceNSCs"
    echo "   eg: $(basename $0) deploy:all       psp1-s1.ak3.lgn.dfs.de  # as above, only for this host"
    echo "   eg: $(basename $0) deploy:keys      psp1-s1.ak3.lgn.dfs.de  # as above, but only ssh public"
    echo "   eg: $(basename $0) deploy:config    psp1-s1.ak3.lgn.dfs.de  # as above, but only tsctl2 and network config"
    echo "   eg: $(basename $0) deploy:scripts   psp1-s1.ak3.lgn.dfs.de  # as above, but only scripts"
    echo "   eg: $(basename $0) all|config|scripts|keys   all   # make everything due to action keyword but don't deploy to NSCs (PSPs) !!"
+	 echo
+	 echo "  --update-resources :  forces update of resource nsc list even if it exists, without this option an existing list will not be overwritten"
    exit 1
 fi
-
 
 function check_host_alive
 {
@@ -103,11 +108,21 @@ for resource_domain_server in $ResourceDomainServers
 do
   resource_dn=${resource_domain_server#*.}
   resource_hn=${resource_domain_server%%.*}
-  ResDomServer[$resource_dn]=$resource_hn  
+  ResDomServer[$resource_dn]=$resource_hn
 done
 
 # set ResourceDomainServers as target list for default
 TargetResourceDomainServers=$ResourceDomainServers
+
+echo "\n<< Create nsc list from all ResourceDomainServers if not disabled via option >>\n"
+
+if [[ "$*" == *update-resources* ]];then
+  echo "updating resource nsc list due to comdline option !"
+	${bindir}/admin_get_resource_nsc_list.sh --no-target-config-list
+fi
+
+echo "\n<< Get rpm(s) from repository  >>\n"
+${bindir}/admin_get_rpms_from_repo.sh
 
 # check command line args and process dn and hn for single nsc deployment
 
@@ -123,7 +138,7 @@ if [[ $arg2 != "all" ]]; then
      resdom_server_dn=$arg_dn
      resdom_server_hn=${ResDomServer[$arg_dn]}
     if [[ -n $resdom_server_hn ]] ; then
-       resdom_server_fqdn=${resdom_server_hn}.${resdom_server_dn} 
+       resdom_server_fqdn=${resdom_server_hn}.${resdom_server_dn}
       if [[ $(check_host_alive ${resdom_server_fqdn}) == 1 ]]; then
         TargetResourceDomainServers=$resdom_server_fqdn
         single_nsc_deployment=1
@@ -137,7 +152,7 @@ if [[ $arg2 != "all" ]]; then
       else
         echo "can't reach $resource_domain_server, exiting"
         exit 1
-      fi  
+      fi
     else
       echo "No resource domain server found for $arg2, exiting"
       exit 1
@@ -148,13 +163,7 @@ if [[ $arg2 != "all" ]]; then
   fi
 fi
 
-## debug exit
-#exit
 ##############
-
-echo "\n<< Create nsc list from all ResourceDomainServers >>\n"
-
-${bindir}/admin_get_resource_nsc_list.sh --no-target-config-list
 
 echo "\n<< Collect nsc configs from all RemoteDomainServers >>\n"
 
@@ -223,12 +232,12 @@ do
   fi
 done
 
-echo "\n<< Deploy all configs to all Resource NSC's >>\n"
-
-if ! [[ $arg1 != *deploy* && $arg1 == *all* || $arg1 == *config* || $arg1 == *scripts* || $arg1 == *keys* || $arg1 == *xinitrc* || $arg1 == *wall_msg* || $arg1 == *java* ]] ; then
+#if ! [[ $arg1 != *deploy* && $arg1 == *all* || $arg1 == *config* || $arg1 == *scripts* || $arg1 == *keys* || $arg1 == *xinitrc* || $arg1 == *wall_msg* || $arg1 == *java* ]] ; then
+if  [[ $arg1 != *deploy* ]] ; then
   echo "WARNING: Deployment to NSCs is SKIPPED because of missing or wrong options !!"
   exit
 fi
+echo "\n<< Deploy all configs to all Resource NSC's >>\n"
 
 for resource_domain_server in $TargetResourceDomainServers
 do
@@ -252,7 +261,8 @@ do
 
     if [[ $arg1 == *scripts* || $arg1 == *all* ]] ; then
       echo "    syncing scripts"
-      ssh $resource_domain_server "nsc_rsync ${bindir}/nsc_reconfigure.sh ${bindir} $target"   > /dev/null 2>&1
+      #ssh $resource_domain_server "nsc_rsync ${bindir}/nsc_reconfigure.sh ${bindir} $target"   > /dev/null 2>&1
+      ssh $resource_domain_server "nsc_rsync ${bindir}/nsc* ${bindir} $target"   > /dev/null 2>&1
       ssh $resource_domain_server "nsc_rsync ${bindir}/2step-get-infos-local ${bindir} $target" > /dev/null 2>&1
       ssh $resource_domain_server "nsc_rsync ${bindir}/2step-netconfig-local ${bindir} $target" > /dev/null 2>&1
     fi

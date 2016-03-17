@@ -36,6 +36,7 @@ basedir=/opt/dfs/tsctl2
 bindir=${basedir}/bin
 confdir=${basedir}/config
 vardir=${basedir}/var
+instdir=${vardir}/install
 typeset resource_fqdn
 typeset resource_dn
 typeset resource_hn
@@ -47,6 +48,7 @@ typeset search_type
 typeset found
 
 source ${confdir}/remote_nsc.cfg # providing:  subtype, ResourceDomainServers, RemoteDomainServers
+[[ -f ${confdir}/remote_nsc.${dn}.cfg ]] && source ${confdir}/remote_nsc.${dn}.cfg # read domain specific cfg
 typeset AllDomainServers=$(echo $RemoteDomainServers $ResourceDomainServers | sed 's/\s+*/\n/g' |  sort -u )
 
 resource_nsc_list_file=${vardir}/resource_nsc.list

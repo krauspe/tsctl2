@@ -18,16 +18,18 @@ basedir=/opt/dfs/tsctl2
 bindir=${basedir}/bin
 confdir=${basedir}/config
 vardir=${basedir}/var
+instdir=${vardir}/install
 remote_nsc_list_file=${vardir}/remote_nsc.list
 typeset -A ResDomServer
 
 source ${confdir}/remote_nsc.cfg # providing:  subtype, ResourceDomainServers, RemoteDomainServers
+[[ -f ${confdir}/remote_nsc.${dn}.cfg ]] && source ${confdir}/remote_nsc.${dn}.cfg # read domain specific cfg
 
 arg1=$1
 arg2=$2
 
 if [[ $# < 2 ]]; then
-   echo "usage: $(basename $0) <action>  [RemoteNSC|all]"
+   echo "usage: $(basename $0) <action>  <RemoteNSC|all>"
    echo "   eg: $(basename $0) deploy:all       all   # create , collect  and deploy configs , and scripts (NO public keys) to all Servers and ResourceNSCs"
    echo "   eg: $(basename $0) deploy:all       psp1-s1.ak3.lgn.dfs.de  # as above, only for this host"
    echo "   eg: $(basename $0) deploy:keys      psp1-s1.ak3.lgn.dfs.de  # as above, but only ssh public"

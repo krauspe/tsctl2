@@ -60,6 +60,7 @@ echo "Using $switch_vlan_script for VLAN Switching"
 echo
 
 source ${confdir}/remote_nsc.cfg # providing:  subtype, ResourceDomainServers, RemoteDomainServers
+[[ -f ${confdir}/remote_nsc.${dn}.cfg ]] && source ${confdir}/remote_nsc.${dn}.cfg # read domain specific cfg
 typeset AllDomainServers=$(echo $RemoteDomainServers $ResourceDomainServers | sed 's/\s+*/\n/g' |  sort -u )
 
 resource_nsc_list_file=${vardir}/resource_nsc.list   # all nscs from all resource domains: <resource-nsc-fqdn> <resource-mac-address>

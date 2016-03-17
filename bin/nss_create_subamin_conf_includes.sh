@@ -18,6 +18,7 @@ confdir=${basedir}/config
 vardir=${basedir}/var
 
 source ${confdir}/remote_nsc.cfg # providing:  subtype, ResourceDomainServers, RemoteDomainServers
+[[ -f ${confdir}/remote_nsc.${dn}.cfg ]] && source ${confdir}/remote_nsc.${dn}.cfg # read domain specific cfg
 
 #typeset include_dir=~spv/newsim_rel1/active_release/system
 typeset include_dir=$vardir
