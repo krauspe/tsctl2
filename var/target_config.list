@@ -1,7 +1,8 @@
  psp1-s1.te1.lgn.dfs.de psp1-s1.te1.lgn.dfs.de 
+ psp2-s1.te1.lgn.dfs.de psp2-s1.te1.lgn.dfs.de 
  psp3-s1.te1.lgn.dfs.de psp3-s1.te1.lgn.dfs.de 
  psp4-s1.te1.lgn.dfs.de psp4-s1.te1.lgn.dfs.de 
  psp5-s1.lx1.lgn.dfs.de psp5-s1.lx1.lgn.dfs.de 
- psp6-s1.lx1.lgn.dfs.de default enable_reconfiguration
- psp7-s1.lx3.lgn.dfs.de psp7-s1.lx3.lgn.dfs.de 
- psp8-s1.lx3.lgn.dfs.de psp8-s1.lx3.lgn.dfs.de 
+ psp6-s1.lx1.lgn.dfs.de psp6-s1.lx1.lgn.dfs.de 
+ psp7-s1.lx3.lgn.dfs.de default enable_reconfiguration
+ psp8-s1.lx3.lgn.dfs.de default enable_reconfiguration
