@@ -242,7 +242,7 @@ if  [[ $arg1 != *deploy* ]] ; then
   exit
 fi
 echo "\n<< Deploy all configs to all Resource NSC's >>\n"
-
+echo "target=$target"
 for resource_domain_server in $TargetResourceDomainServers
 do
     # sync all configd to nsc's
@@ -266,7 +266,7 @@ do
     if [[ $arg1 == *scripts* || $arg1 == *all* ]] ; then
       echo "    syncing scripts"
       #ssh $resource_domain_server "nsc_rsync ${bindir}/nsc_reconfigure.sh ${bindir} $target"   > /dev/null 2>&1
-      ssh $resource_domain_server "nsc_rsync ${bindir}/nsc* ${bindir} $target"   > /dev/null 2>&1
+      ssh $resource_domain_server "nsc_rsync \'${bindir}/nsc*\' ${bindir} $target"  # > /dev/null 2>&1
       ssh $resource_domain_server "nsc_rsync ${bindir}/2step-get-infos-local ${bindir} $target" > /dev/null 2>&1
       ssh $resource_domain_server "nsc_rsync ${bindir}/2step-netconfig-local ${bindir} $target" > /dev/null 2>&1
     fi
