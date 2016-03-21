@@ -100,7 +100,6 @@ if [[ $arg2 != "all" ]]; then
   fi
 fi
 
-
 for resource_domain_server in $TargetResourceDomainServers
 do
     # sync all configd to nsc's
@@ -123,7 +122,8 @@ do
 
     if [[ $arg1 == *scripts* || $arg1 == *all* ]] ; then
       echo "    syncing scripts"
-      ssh $resource_domain_server "nsc_rsync ${bindir}/nsc_reconfigure.sh ${bindir} $target"   > /dev/null 2>&1
+      #ssh $resource_domain_server "nsc_rsync ${bindir}/nsc_reconfigure.sh ${bindir} $target"   > /dev/null 2>&1
+      ssh $resource_domain_server "nsc_rsync \'${bindir}/nsc*\' ${bindir} $target"  > /dev/null 2>&1
       ssh $resource_domain_server "nsc_rsync ${bindir}/2step-get-infos-local ${bindir} $target" > /dev/null 2>&1
       ssh $resource_domain_server "nsc_rsync ${bindir}/2step-netconfig-local ${bindir} $target" > /dev/null 2>&1
     fi
@@ -143,7 +143,7 @@ do
       ufa_dir=/opt/ufa
       cmd="mkdir -p ${ufa_dir}"
       # ufa_dir auf allen resource_domain_server anlegen
-      
+
       if [[ $resource_domain_server != $(dnsdomainname) ]]; then
           ssh $resource_domain_server $cmd  > /dev/null 2>&1
           # java auf alle resource_domain_server kopieren
@@ -156,4 +156,5 @@ do
     fi
 done
 
+### CUT hERE
 echo "\nDone.\n"
