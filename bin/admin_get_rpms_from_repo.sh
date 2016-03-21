@@ -14,9 +14,9 @@ typeset WSPACE=' 	'
 unset http_proxy
 unset https_proxy
 
-
-#rpm_name="dfs_remotePiloten_appHandling"
-rpm_name="newsim_web"
+# get client_rpm_name frpm cfg
+source ${confdir}/remote_nsc.cfg # providing:  subtype, ResourceDomainServers, RemoteDomainServers
+[[ -f ${confdir}/remote_nsc.${dn}.cfg ]] && source ${confdir}/remote_nsc.${dn}.cfg # read domain specific cfg
 
 # result=${result//+([$WSPACE])=+([$WSPACE])/=}
 
@@ -43,7 +43,6 @@ function initZypperInfo {
 		set -- $line
 		key=$1
 		val=$*
-		val=${val#$1 }
 		val=${val#$1 }
   	val=${val//[$WSPACE]/""}
 		if [[ -n $key ]]; then
@@ -76,7 +75,7 @@ function gethttpURL {
 
 initRepoURIs
 
-rpm_uri=$(getRpmURI $rpm_name)
+rpm_uri=$(getRpmURI $client_rpm_name)
 echo $rpm_uri
 rpm_url=$(gethttpURL $rpm_uri)
 echo $rpm_url
