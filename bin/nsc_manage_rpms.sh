@@ -85,7 +85,7 @@ fi
 
 # get latest rpm
 
-client_rpm_file=$(ls -tr ${instdir}/${client_rpm_name}*.rpm 2>/dev/null| tail -1)
+client_rpm_file=$(ls ${instdir}/${client_rpm_name}*.rpm 2>/dev/null| tail -1)
 
 #echo "client_rpm_file=$client_rpm_file"
 
