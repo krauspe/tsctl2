@@ -59,18 +59,22 @@ function removeClientRpm {
 
 typeset mode
 
-if [[ $1 == *local* ]]; then
-	mode=local
-else
-  echo $AppCacheEnabledDomains | grep $1 > /dev/null 2>&1
-	if [[ $? != 0 ]]; then
-		echo "App cache rpm management is NOT enabled on this daomin. skipping"
-		exit
+if [[ -n $1 ]]; then
+	if [[ $1 == *local* ]]; then
+		mode=local
 	else
-		mode=remote
+		echo $AppCacheEnabledDomains | grep $1 > /dev/null 2>&1
+		if [[ $? != 0 ]]; then
+			echo "App cache rpm management is NOT enabled on this daomin. skipping"
+			exit
+		else
+			mode=remote
+		fi
 	fi
+else
+	echo "usage: $(basename $0) local | <domainn>"
+	exit
 fi
-
 # check wether client_rpm is installed or not
 
 client_rpm_info=$(getRpmInfo $client_rpm_name)
