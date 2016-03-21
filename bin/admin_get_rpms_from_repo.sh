@@ -13,9 +13,12 @@ typeset WSPACE=' 	'
 
 unset http_proxy
 unset https_proxy
+# <2step>
+source /etc/2step/2step.vars
 
 # get client_rpm_name frpm cfg
 source ${confdir}/remote_nsc.cfg # providing:  subtype, ResourceDomainServers, RemoteDomainServers
+
 [[ -f ${confdir}/remote_nsc.${dn}.cfg ]] && source ${confdir}/remote_nsc.${dn}.cfg # read domain specific cfg
 
 # result=${result//+([$WSPACE])=+([$WSPACE])/=}
@@ -82,4 +85,21 @@ echo $rpm_url
 
 mkdir -p $instdir
 cd $instdir
-wget $rpm_url
+wget $rpm_url --timeout 10
+
+if [[ $? -ne 0 ]]; then
+	echo "WARNING: coul not update $client_rpm_name"
+fi
+
+ls ${instdir}/${client_rpm_name}*.rpm >/dev/null 2>&1
+
+if [[ $? -ne 0 ]] ; then
+	echo "WARNING: NO  $client_rpm_name available !!"
+else
+  latest_rpm=$(ls ${instdir}/${client_rpm_name}*.rpm| tail -1)
+  echo "latest version is $latest_rpm"
+fi
+
+echo
+
+
