@@ -18,7 +18,6 @@ source /etc/2step/2step.vars
 
 # get client_rpm_name frpm cfg
 source ${confdir}/remote_nsc.cfg # providing:  subtype, ResourceDomainServers, RemoteDomainServers
-
 [[ -f ${confdir}/remote_nsc.${dn}.cfg ]] && source ${confdir}/remote_nsc.${dn}.cfg # read domain specific cfg
 
 # result=${result//+([$WSPACE])=+([$WSPACE])/=}
@@ -75,7 +74,6 @@ function gethttpURL {
   echo $url
 }
 
-
 initRepoURIs
 
 rpm_uri=$(getRpmURI $client_rpm_name)
@@ -100,6 +98,11 @@ else
   echo "latest version is $latest_rpm"
 fi
 
-echo
+# remove wget duplicates (quick'n'dirty, no version checks)
+
+ls ${instdir}/${client_rpm_name}*.rpm.[1-9] >/dev/null 2>&1
+if [[ $? -eq 0 ]] ; then
+	rm ${instdir}/${client_rpm_name}*.rpm.[1-9]
+fi
 
 
