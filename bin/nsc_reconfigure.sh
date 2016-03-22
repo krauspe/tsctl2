@@ -30,7 +30,7 @@ source /etc/2step/2step.vars
 
 #dbg=echo
 dbg=""
-typeset -i debug_level=0
+typeset -i debug_level=1
 dev=eth0
 # ggfs spaeter aus config file
 basedir=/opt/dfs/tsctl2
