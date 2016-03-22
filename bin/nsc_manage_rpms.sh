@@ -66,9 +66,9 @@ if [[ -n $1 ]]; then
 		echo $AppCacheEnabledDomains | grep $1 > /dev/null 2>&1
 		if [[ $? != 0 ]]; then
 			echo
-			echo "MANAGE RPMS: App cache rpm management is NOT enabled on this daomin. skipping"
+			echo "MANAGE RPMS: App cache is NOT enabled on this daomin. skipping (or removing rpms)"
 			echo
-			exit
+			mode=disabled
 		else
 			mode=remote
 		fi
@@ -105,6 +105,11 @@ if [[ $mode == *local* ]]; then
 		removeClientRpm $client_rpm_name
 	else
 		echo "MANAGE RPMS: we reconfigure to local, $client_rpm_name is not installed. nothing to do."
+	fi
+elif  [[ $mode == *disabled* ]];then
+	if [[ $rpm_installed -eq 1 ]]; then
+		echo "MANAGE RPMS: we reconfigure to remote with disabled App caching. $client_rpm_name is installed, Going to remove it."
+      		removeClientRpm $client_rpm_name
 	fi
 elif  [[ $mode == *remote* ]];then
 	if [[ $rpm_installed -eq 0 ]]; then
