@@ -68,11 +68,12 @@ xhost +
 xset -dpms s off
 
 ##-BEGIN-REMOTE-PSP-DISPLAY-##
-msg_opts="hostname" ; color=white
-default_dn=$(grep ^dn /etc/2step/2step.vars) ; default_dn=${default_dn#*\"}; default_dn=${default_dn%\"}
-[[ $default_dn != $(dnsdomainname) ]] && msg_opts="remote psp in\n $(dnsdomainname)" && color=green
-/usr/local/share/wall_msg/bin/set_wall_msg.sh newsim "$msg_opts" $color 
+#msg_opts="hostname" ; color=white
+#default_dn=$(grep ^dn /etc/2step/2step.vars) ; default_dn=${default_dn#*\"}; default_dn=${default_dn%\"}
+#[[ $default_dn != $(dnsdomainname) ]] && msg_opts="remote psp in\n $(dnsdomainname)" && color=green
+#/usr/local/share/wall_msg/bin/set_wall_msg.sh newsim "$msg_opts" $color 
 ##-END-REMOTE-PSP-DISPLAY-##
+/usr/local/share/wall_msg/bin/set_wall_msg.sh newsim hostname
 
 #/usr/local/bin/run_dm_options.sh > /dev/null 2>&1
 
