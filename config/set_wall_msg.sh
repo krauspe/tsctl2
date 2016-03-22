@@ -11,6 +11,7 @@ dbg=""
 #   12.11.2014: support display extendet mode for AFS and similiar applications
 #   10.11.2015: display remote pilote status info
 #   24.11.2015: update test
+#   22.03.2016: added message indicating "makeThingsLocal" setting (via rpm installed check)
 #
 # set permission for creating temp files
 umask 000
@@ -21,6 +22,14 @@ else
   echo "/etc/2step/x11.vars not found !! exiting.."
   exit 1
 fi
+
+# getting TSCTL vars
+tsctl2_basedir=/opt/dfs/tsctl2
+tsctl2_confdir=${tsctl2_basedir}/config
+source ${tsctl2_confdir}/remote_nsc.cfg # providing:  subtype, ResourceDomainServers, RemoteDomainServers
+[[ -f ${tsctl2_confdir}/remote_nsc.${dn}.cfg ]] && source ${tsctl2_confdir}/remote_nsc.${dn}.cfg # read domain specific cfg
+##
+
 
 #debug
 #. ./x11.ak3.lgn.dfs.de.vars
@@ -121,7 +130,15 @@ function SetVars
             color2=white
             if [[ -f /etc/2step/2step.vars ]];then
               default_dn=$(grep ^dn /etc/2step/2step.vars); default_dn=${default_dn#*\"}; default_dn=${default_dn%\"}
-              [[ $default_dn != $(dnsdomainname) ]] && text1="remote psp in\n $(dnsdomainname)" && color1=green
+              if [[ $default_dn != $(dnsdomainname) ]] ; then
+		 text1="remote psp in\n $(dnsdomainname)" 
+		 color1=green
+		 rpm -qa | grep $client_rpm_name >/dev/null 2>&1
+		 if [[ $? -eq 0 ]]; then
+		   text1="${text1}\nmadeThingsLocal"
+ 		 fi
+	      fi
+       
             fi
             ;;	
   blank*)
