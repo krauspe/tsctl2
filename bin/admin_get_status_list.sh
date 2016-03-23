@@ -192,37 +192,36 @@ do
   resource_hn=${resource_fqdn%%.*}
 
   if [[ $search_type == "direct" ]]; then
-	previous_fqdn=${PREVIOUS_TARGET_FQDN[$resource_fqdn]}
-	[[ $previous_fqdn == "default" ]] && previous_fqdn=$resource_fqdn
+		previous_fqdn=${PREVIOUS_TARGET_FQDN[$resource_fqdn]}
+		[[ $previous_fqdn == "default" ]] && previous_fqdn=$resource_fqdn
 
-	echo "assume $resource_fqdn configured as $previous_fqdn"
-	echo
-	if [[ $previous_fqdn == "unknown" ]]; then
-		echo "... try LOCAL"
-		previous_fqdn=$resource_fqdn
-	fi
-	resource_status=$(check_nsc_status $previous_fqdn)
-
-	if [[ $resource_status == "ssh-ok" ]]; then
-		if [[ $previous_fqdn == $resource_fqdn ]]; then
-			echo "$resource_fqdn $resource_fqdn available" | tee -a $nsc_status_list_file
-			found=1
-		else
-			echo "$resource_fqdn $previous_fqdn occupied" | tee -a $nsc_status_list_file
-			found=1
+		echo "assume $resource_fqdn configured as $previous_fqdn"
+		echo
+		if [[ $previous_fqdn == "unknown" ]]; then
+			echo "... try LOCAL"
+			previous_fqdn=$resource_fqdn
 		fi
-	fi
+		resource_status=$(check_nsc_status $previous_fqdn)
 
+		if [[ $resource_status == "ssh-ok" ]]; then
+			if [[ $previous_fqdn == $resource_fqdn ]]; then
+				echo "$resource_fqdn $resource_fqdn available" | tee -a $nsc_status_list_file
+				found=1
+			else
+				echo "$resource_fqdn $previous_fqdn occupied" | tee -a $nsc_status_list_file
+				found=1
+			fi
+		fi
 
-	if (( $found == 0 )); then
+		if (( $found == 0 )); then
+			deep_search
+		fi
+
+  else # search_type=deep
 		deep_search
 	fi
 
-  else # search_type=deep
-	deep_search
-fi
-
-(( $found==0 )) && echo "$resource_fqdn unknown unreachable" | tee -a  $nsc_status_list_file
+	(( $found==0 )) && echo "$resource_fqdn unknown unreachable" | tee -a  $nsc_status_list_file
 
 done
 echo "Done."
