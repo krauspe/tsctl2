@@ -51,3 +51,8 @@ Search-types:
 
  full remote search: run nss_script (? oder admin script ?) welche alle rnsc's aus der DNS domain abfragt (ping + ssh)
  
+Obiges: DONE
+
+TODO NEW: check neue statusabfrage (mit Option --enabled-only:)
+          bei Aufruf nach reconfigure, also ohne die Option.
+          ggfs echos fuer uebrige resource_fqdns rausnehmen !!
