@@ -42,17 +42,32 @@ typeset resource_dn
 typeset resource_hn
 typeset -A RESOURCE_MACS
 typeset -A PREVIOUS_TARGET_FQDN
-typeset -A PREVIOUS_STATUS
+typeset -A PREVIOUS_REMOTE_FQDN
+typeset -A TARGET_OPTION
 typeset arg1=$1
 typeset search_type
 typeset found
+typeset previous_status_list_available=0
+typeset target_config_list_available=0
+typeset option_enabled_only=0
 
 source ${confdir}/remote_nsc.cfg # providing:  subtype, ResourceDomainServers, RemoteDomainServers
 [[ -f ${confdir}/remote_nsc.${dn}.cfg ]] && source ${confdir}/remote_nsc.${dn}.cfg # read domain specific cfg
 typeset AllDomainServers=$(echo $RemoteDomainServers $ResourceDomainServers | sed 's/\s+*/\n/g' |  sort -u )
 
+# check cmdline args
+opts=$*
+
+if [[ $opts == *--enabled-only* ]] ; then
+	echo "CHECKING ONLY resource fqdns which are enabled for reconfiguration !!"
+	option_enabled_only=1
+fi
+
+# set vars
+
 resource_nsc_list_file=${vardir}/resource_nsc.list
 nsc_status_list_file=${vardir}/nsc_status.list
+target_config_list_current_file=${vardir}/target_config.list
 target_config_list_previous_file=${vardir}/target_config.list.previous
 
 function get_domain_server_hn
@@ -121,7 +136,7 @@ function deep_search
 
 # MAIN
 
-echo "\n<< Create Resource NSC Status (List) .. This may take a while, be patient !!  >>\n" >&2
+echo "\n<< Create Resource NSC Status (List) .. This may take a while, be patient !!  >>\n"
 
 if [[ ! -f $resource_nsc_list_file ]]; then
   echo "  $resource_nsc_list_file not found, create it .." >&2
@@ -146,6 +161,41 @@ done < $resource_nsc_list_file
 # for first guess as current status
 
 
+# read nsc status list when available
+
+if [[ -f $nsc_status_list_file ]] ; then
+  echo "found nsc status list"
+  while read line
+  do
+    [[ $line == \#* ]] && continue
+    set -- $line
+    resource_fqdn=$1
+    remote_fqdn=$2
+    #status=$3 # allways old
+    PREVIOUS_REMOTE_FQDN[$resource_fqdn]=$remote_fqdn
+  done < $nsc_status_list_file
+  previous_status_list_available=1
+fi
+
+# read current target config list when available
+# select enabled targets and store in array
+
+if [[ -f $target_config_list_current_file ]] ; then
+  echo "found current target config list"
+
+  while read line
+  do
+    [[ $line == \#* ]] && continue
+    set -- $line
+    resource_fqdn=$1
+    remote_fqdn=$2
+    target_option=$3
+    TARGET_OPTION[$resource_fqdn]=$target_option
+  done < $target_config_list_current_file
+  target_config_list_available=1
+fi
+
+
 if [[ -f $target_config_list_previous_file ]] ; then
   echo "found previous target config list"
   echo "taking entrys as first trial to check status ..."
@@ -159,17 +209,12 @@ if [[ -f $target_config_list_previous_file ]] ; then
     PREVIOUS_TARGET_FQDN[$resource_fqdn]=$remote_fqdn
   done < $target_config_list_previous_file
   search_type=direct
-elif [[ -f $nsc_status_list_file ]] ; then
+elif (( previous_status_list_available == 1 )) ; then
   echo "NO previous target config list found."
   echo "but found old status list. taking entrys as first trial to check status ..."
-  while read line
+  for resource_fqdn in  ${!PREVIOUS_REMOTE_FQDN[*]}
   do
-    [[ $line == \#* ]] && continue
-    set -- $line
-    resource_fqdn=$1
-    remote_fqdn=$2
-    #status=$3 allways old
-    PREVIOUS_TARGET_FQDN[$resource_fqdn]=$remote_fqdn
+    PREVIOUS_TARGET_FQDN[$resource_fqdn]=${PREVIOUS_REMOTE_FQDN[$resource_fqdn]}
   done < $nsc_status_list_file
   search_type=direct
 else
@@ -201,16 +246,21 @@ do
 			echo "... try LOCAL"
 			previous_fqdn=$resource_fqdn
 		fi
-		resource_status=$(check_nsc_status $previous_fqdn)
 
-		if [[ $resource_status == "ssh-ok" ]]; then
-			if [[ $previous_fqdn == $resource_fqdn ]]; then
-				echo "$resource_fqdn $resource_fqdn available" | tee -a $nsc_status_list_file
-				found=1
-			else
-				echo "$resource_fqdn $previous_fqdn occupied" | tee -a $nsc_status_list_file
-				found=1
+		if [[ ${TARGET_OPTION[$resource_fqdn]} == "enable_reconfiguration" || $option_enabled_only == 0 ]]; then
+			resource_status=$(check_nsc_status $previous_fqdn)
+			if [[ $resource_status == "ssh-ok" ]]; then
+				if [[ $previous_fqdn == $resource_fqdn ]]; then
+					echo "$resource_fqdn $resource_fqdn available" | tee -a $nsc_status_list_file
+					found=1
+				else
+					echo "$resource_fqdn $previous_fqdn occupied" | tee -a $nsc_status_list_file
+					found=1
+				fi
 			fi
+		else
+			echo "$resource_fqdn unknown unknown" | tee -a $nsc_status_list_file
+			found=1  # fake found to skip deep search
 		fi
 
 		if (( $found == 0 )); then
