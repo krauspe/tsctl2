@@ -15,7 +15,7 @@
 #  13.01.2016: Use different scripts for vlan switching, depending on usage in test (lx3) or production environment (sysman1)
 #  18.01.2016: create backup of target_config_list with postfix ".previous"
 #  29.01.2016: creating previous target config list AFTER get status list. Bevore was wrong, because get status script uses this
-#
+#  23.03.2016: added option --enabled-only to changed script admin_get_status_list.sh
 # TODO: look at ../TODO.TXT
 #
 # <2step>
@@ -233,7 +233,7 @@ fi
 # create/update nsc_status_list ################
  echo "\nCREATE/UPDATE nsc_status_list\n" 
  echo "(this may take a while)\n" 
- ${bindir}/admin_get_status_list.sh
+ ${bindir}/admin_get_status_list.sh --enabled-only
 
 # create target_config_list_previous_file
 
