@@ -49,10 +49,21 @@ typeset search_type
 typeset found
 typeset previous_status_list_available=0
 typeset target_config_list_available=0
+typeset option_enabled_only=0
 
 source ${confdir}/remote_nsc.cfg # providing:  subtype, ResourceDomainServers, RemoteDomainServers
 [[ -f ${confdir}/remote_nsc.${dn}.cfg ]] && source ${confdir}/remote_nsc.${dn}.cfg # read domain specific cfg
 typeset AllDomainServers=$(echo $RemoteDomainServers $ResourceDomainServers | sed 's/\s+*/\n/g' |  sort -u )
+
+# check cmdline args
+opts=$*
+
+if [[ $opts == *--enabled-only* ]] ; then
+	echo "CHECKING ONLY resource fqdns which are enabled for reconfiguration !!"
+	option_enabled_only=1
+fi
+
+# set vars
 
 resource_nsc_list_file=${vardir}/resource_nsc.list
 nsc_status_list_file=${vardir}/nsc_status.list
@@ -219,16 +230,7 @@ fi
 
 # doing the search
 
-#   if [[ $target_option == "enable_reconfiguration" ]] ; then
-#   fi
-
-if [[ $opt == *--targets-only* ]]; then
-	RESOURCE_FQDNS=$RESOURCE_FQDNS_ENABLED
-else
-	RESOURCE_FQDNS=$RESOURCE_FQDNS_ALL
-fi
-
-for resource_fqdn in $RESOURCE_FQDNS
+for resource_fqdn in $RESOURCE_FQDNS_ALL
 do
   found=0
   resource_dn=${resource_fqdn#*.}
@@ -245,7 +247,7 @@ do
 			previous_fqdn=$resource_fqdn
 		fi
 
-		if [[ ${TARGET_OPTION[$resource_fqdn]} == "enable_reconfiguration" ]]; then
+		if [[ ${TARGET_OPTION[$resource_fqdn]} == "enable_reconfiguration" || $option_enabled_only == 0 ]]; then
 			resource_status=$(check_nsc_status $previous_fqdn)
 			if [[ $resource_status == "ssh-ok" ]]; then
 				if [[ $previous_fqdn == $resource_fqdn ]]; then
