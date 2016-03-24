@@ -173,7 +173,8 @@ do
   fi
   # --- check remote_fqdns ------
   if [[ $resource_fqdn != $remote_fqdn ]]; then
-    [[ -z $remote_fqdn ]] && echo "\n$resource_fqdn: no remote_fqdn assignd , skipping" && continue  # skip entrys without remote_fqdn entry
+    #[[ -z $remote_fqdn ]] && echo "\n$resource_fqdn: no remote_fqdn assignd , skipping" && continue  # skip entrys without remote_fqdn entry
+    [[ -z $remote_fqdn ]] && continue  # skip entrys without remote_fqdn entry
     echo $VALID_REMOTE_FQDNS | grep $remote_fqdn >/dev/null 2>&1
     if (( $? > 0 )); then
      if [[ $remote_fqdn == "default" ]]; then
