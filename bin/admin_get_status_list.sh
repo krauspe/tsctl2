@@ -239,9 +239,9 @@ do
   if [[ $search_type == "direct" ]]; then
 		previous_fqdn=${PREVIOUS_TARGET_FQDN[$resource_fqdn]}
 		[[ $previous_fqdn == "default" ]] && previous_fqdn=$resource_fqdn
-
-		echo "assume $resource_fqdn configured as $previous_fqdn"
 		echo
+		echo "assume $resource_fqdn configured as $previous_fqdn"
+
 		if [[ $previous_fqdn == "unknown" ]]; then
 			echo "... try LOCAL"
 			previous_fqdn=$resource_fqdn
