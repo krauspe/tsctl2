@@ -46,7 +46,7 @@ Zustand: 3. (alle weiteren)
 
 Search-types:
 
- direct: wenn resource_fqdn==remote_fqdn -> ping okal -> ssh test lokal
+ direct: wenn resource_fqdn==remote_fqdn -> ping lokal -> ssh test lokal
          wenn resource_fqdn!=remote_fqdn -> ssh nss ping psp -> ssh nss ssh psp
 
  full remote search: run nss_script (? oder admin script ?) welche alle rnsc's aus der DNS domain abfragt (ping + ssh)
