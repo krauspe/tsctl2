@@ -238,7 +238,9 @@ fi
 
 # create target_config_list_previous_file
 
-echo "  backup target config list as $target_config_list_previous_file"
+echo
+echo "Backup target config list as $target_config_list_previous_file"
+echo
 cp $target_config_list_file $target_config_list_previous_file
 
 
@@ -279,11 +281,9 @@ do
   [[ -z $remote_fqdn ]] && continue  # skip entrys without assignment 
                                      # ist eigentlich redundant !!
 
-  echo "\n-----------------------------------------------------------------------------------------\n"
-
-  echo "CHECKING SYSTEM STATUS FOR RECONFIGURATION: $resource_fqdn => $remote_fqdn (target_option=$target_option)"
-
   if [[ $target_option == "enable_reconfiguration" || $target_option == "force_reconfigure" ]]; then
+  	#echo "\n-----------------------------------------------------------------------------------------\n"
+  	echo "CHECKING SYSTEM STATUS FOR RECONFIGURATION: $resource_fqdn => $remote_fqdn (target_option=$target_option)"
     if [[ ${STATUS[$resource_fqdn]} == "unreachable" ]] ; then
       echo "  Current status of $resource_fqdn is ${STATUS[$resource_fqdn]}. can not configure !!. Check host !!"
     elif [[ ${CURRENT_FQDN[$resource_fqdn]} == "unknown" ]] ; then
@@ -363,5 +363,4 @@ do
     fi
   fi
 
-  echo "-----------------------------------------------------------------------------------------\n"
 done < $target_config_list_file
