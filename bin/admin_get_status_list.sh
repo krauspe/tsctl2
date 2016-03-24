@@ -237,17 +237,18 @@ do
   resource_hn=${resource_fqdn%%.*}
 
   if [[ $search_type == "direct" ]]; then
-		previous_fqdn=${PREVIOUS_TARGET_FQDN[$resource_fqdn]}
-		[[ $previous_fqdn == "default" ]] && previous_fqdn=$resource_fqdn
-		echo
-		echo "assume $resource_fqdn configured as $previous_fqdn"
-
-		if [[ $previous_fqdn == "unknown" ]]; then
-			echo "... try LOCAL"
-			previous_fqdn=$resource_fqdn
-		fi
 
 		if [[ ${TARGET_OPTION[$resource_fqdn]} == "enable_reconfiguration" || $option_enabled_only == 0 ]]; then
+			previous_fqdn=${PREVIOUS_TARGET_FQDN[$resource_fqdn]}
+			[[ $previous_fqdn == "default" ]] && previous_fqdn=$resource_fqdn
+			echo
+			echo "assume $resource_fqdn configured as $previous_fqdn"
+
+			if [[ $previous_fqdn == "unknown" ]]; then
+				echo "... try LOCAL"
+				previous_fqdn=$resource_fqdn
+			fi
+
 			resource_status=$(check_nsc_status $previous_fqdn)
 			if [[ $resource_status == "ssh-ok" ]]; then
 				if [[ $previous_fqdn == $resource_fqdn ]]; then
