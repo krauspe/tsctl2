@@ -1,4 +1,12 @@
 #!/usr/bin/ksh
+#
+# search rpms as set in $client_rpm_name through wget out of all (zypper) configured repositorys
+#
+# Changes:
+#	29.03.2016: - added zypper options to prevent interactive input questions
+#
+#
+#
 
 basedir=/opt/dfs/tsctl2
 bindir=${basedir}/bin
@@ -25,7 +33,7 @@ source ${confdir}/remote_nsc.cfg # providing:  subtype, ResourceDomainServers, R
 function initRepoURIs {
   typeset -l key
   #cat ${confdir}/zypper_lr_pu.out | while read line
-  zypper lr -pu  | while read line
+  zypper --no-gpg-checks  --non-interactive lr -pu  | while read line
   do
 
 		key=$(echo $line |  cut -d '|' -f 3)
@@ -40,7 +48,7 @@ function initRepoURIs {
 function initZypperInfo {
 	rpm=$1
 	#cat ${confdir}/zypper_info.${rpm}.out| while read line
-	zypper info $rpm | while read line
+	zypper --no-gpg-checks  --non-interactive info $rpm | while read line
 	do
 		set -- $line
 		key=$1
@@ -57,8 +65,8 @@ function initZypperInfo {
 
 function getRpmURI {
 	rpm=$1
-  initZypperInfo $rpm
-  repo=${zypper_info["repository"]}
+  	initZypperInfo $rpm
+  	repo=${zypper_info["repository"]}
 	baseurl=${repo_url[$repo]}
 	version=${zypper_info["version"]}
 	arch=${zypper_info["arch"]}
@@ -77,9 +85,9 @@ function gethttpURL {
 initRepoURIs
 
 rpm_uri=$(getRpmURI $client_rpm_name)
-echo $rpm_uri
+echo "rpm_uri=$rpm_uri"
 rpm_url=$(gethttpURL $rpm_uri)
-echo $rpm_url
+echo "rpm_url=$rpm_url"
 
 mkdir -p $instdir
 cd $instdir
