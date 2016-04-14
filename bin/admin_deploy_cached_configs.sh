@@ -5,6 +5,8 @@
 # This script should run on an admin machine. It syncs cached configs to given Remote NSC or all Remote's of all 
 # Remote domians
 #
+# changes:
+# 14.04.2016: minor bugfix in print out
 #
 
 # <2step>
@@ -82,7 +84,7 @@ if [[ $arg2 != "all" ]]; then
         single_nsc_deployment=1
         target=${arg_hn}.${arg_dn}
         echo
-        echo "OK found and reached $resource_domain_server "
+        echo "OK found and reached $resdom_server_fqdn "
         echo "Will deploy stuff ONLY to following NSC: $target "
         echo "Existence and reachability of $target is not checked at this point ! "
         echo "------------------------------------------------"

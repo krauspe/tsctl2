@@ -25,6 +25,8 @@
 #               forces update of resource nsc list even if it exists, without this option an existing list will not be overwritten
 #             - added calling script "admin_get_rpms_from_repo.sh" which copies rpms to var/install from Repo for local install on NSC's
 #             - changed cmdline handling: missing "deploy" string in first argumemt disables deploment to NSCs (independent of :<option>)
+# 14.04.2016: - minor bugfix in print out
+
 #
 #TODO: check changed cmdline handling for certain cases
 #
@@ -126,7 +128,7 @@ if [[ "$*" == *update-resources* ]];then
 fi
 
 echo "\n<< Get rpm(s) from repository  >>\n"
-${bindir}/admin_get_rpms_from_repo.sh
+#${bindir}/admin_get_rpms_from_repo.sh
 
 # check command line args and process dn and hn for single nsc deployment
 
@@ -148,7 +150,7 @@ if [[ $arg2 != "all" ]]; then
         single_nsc_deployment=1
         target=${arg_hn}.${arg_dn}
         echo
-        echo "OK found and reached $resource_domain_server "
+        echo "OK found and reached $resdom_server_fqdn "
         echo "Will create and deploy configs to all servers, "
         echo "but deploy stuff ONLY to following NSC: $target "
         echo "Existence and reachability of $target is not checked at this point ! "
