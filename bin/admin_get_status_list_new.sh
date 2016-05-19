@@ -127,7 +127,7 @@ function check_nsc_status
   fi
 }
 
-# doesn't work so far !!
+# TODO: doesn't work so far !!
 function get_dn_from_vlan_config
 {
 	fqdn_in=$1
