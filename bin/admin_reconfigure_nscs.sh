@@ -47,7 +47,7 @@ typeset -i double_entrys
 switch_vlan_prod_script=/home/sysman/tools/rem_pil/bin_ak/control_net_ak_psp.sh
 # uwes altes Script ist obsolete
 #switch_vlan_dev_script=${bindir}/control_rem_pil_test_net.sh
-switch_vlan_dev_script=${bindir}/control_net_ak_psp.sh
+switch_vlan_dev_script=${bindir}/control_net_develop.sh
 
 if [[ -x $switch_vlan_prod_script ]] ; then
   switch_vlan_script=$switch_vlan_prod_script

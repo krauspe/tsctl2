@@ -1,5 +1,8 @@
 #!/bin/bash
 #
+# Angepasst fuer /opt/dfs/tsctl2 - Umgebung P.K 19.05.2016
+#
+#
 script=`basename $0`
 Generic_Name=control_net_ak_psp.sh
 version=1.1
@@ -60,7 +63,11 @@ MODE_SHORTLX3=LGNLX3
 MODESdummy=dummy
 #
 # remove "new" for Production
-STATDIR=/home/sysman/tools/rem_pil/portlists/
+# PK: Anpassung fuer Testumgebung lgnlx3
+#STATDIR=/home/sysman/tools/rem_pil/portlists/
+STATDIR=/opt/dfs/tsctl2/tmp
+[[ -d $STATDIR ]] || mkdir -p $STATDIR
+#
 DESCR_RAW=descr_raw.txt
 SIMPORTLIST=$STATDIR/ak_sim_vlan_status.txt
 #SIMPORTLIST_ALL=$STATDIR/ak_sim_vlan_status_all.txt
