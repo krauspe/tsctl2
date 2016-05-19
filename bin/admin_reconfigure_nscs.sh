@@ -16,6 +16,7 @@
 #  18.01.2016: create backup of target_config_list with postfix ".previous"
 #  29.01.2016: creating previous target config list AFTER get status list. Bevore was wrong, because get status script uses this
 #  23.03.2016: added option --enabled-only to changed script admin_get_status_list.sh
+#  19.05.2016: updated vlan script (is now identical to sysman1 script)
 # TODO: look at ../TODO.TXT
 #
 # <2step>
@@ -44,7 +45,9 @@ typeset -i invalid_entrys
 typeset -i double_entrys
 
 switch_vlan_prod_script=/home/sysman/tools/rem_pil/bin_ak/control_net_ak_psp.sh
-switch_vlan_dev_script=${bindir}/control_rem_pil_test_net.sh
+# uwes altes Script ist obsolete
+#switch_vlan_dev_script=${bindir}/control_rem_pil_test_net.sh
+switch_vlan_dev_script=${bindir}/control_net_ak_psp.sh
 
 if [[ -x $switch_vlan_prod_script ]] ; then
   switch_vlan_script=$switch_vlan_prod_script
