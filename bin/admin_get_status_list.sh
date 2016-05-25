@@ -22,7 +22,8 @@
 #
 # Changes: 
 #   13.01.2016 check existence of previous target_config_list , than existence og status list and take assignment for first guess when searching resource nscs
-#   25.05.2016 enhence performance by checking current vlan config:  Check vlan config in "deep search"
+#   25.05.2016 - enhence performance by checking current vlan config:  Check vlan config in "deep search"
+#							 - deep search has new option to skip local search to avoid local search beeing executed twice
 #
 #
 
@@ -149,9 +150,14 @@ function deep_search
 {
 	resource_fqdn=$1
 	resource_status=$2
+	opt=$3
 	#HIER !!!
-  echo "deep search: try LOCAL first ....."
-  resource_status=$(check_nsc_status $resource_fqdn)
+	if [[ $opt != *--skip-local-search* ]]; then
+  	echo "deep search: trying LOCAL first ....."
+  	resource_status=$(check_nsc_status $resource_fqdn)
+  else
+  	resource_status=unknown
+  fi
 
   if [[ $resource_status == "ssh-ok" ]]; then
     echo "$resource_fqdn $resource_fqdn available" | tee -a $nsc_status_list_file
@@ -299,7 +305,7 @@ do
 			echo "assume $resource_fqdn configured as $previous_fqdn"
 
 			if [[ $previous_fqdn == "unknown" ]]; then
-				echo "... try LOCAL"
+				echo "trying LOCAL"
 				previous_fqdn=$resource_fqdn
 			fi
 
@@ -319,8 +325,8 @@ do
 		fi
 
 		if (( $found == 0 )); then
-		   [[ -f $control_net_out_file ]] || $switch_vlan_script -v > $control_net_out_file
-			deep_search $resource_fqdn $resource_status
+		  [[ -f $control_net_out_file ]] || $switch_vlan_script -v > $control_net_out_file
+			deep_search $resource_fqdn $resource_status --skip-local-search
 		fi
 
   else # search_type=deep
