@@ -22,6 +22,7 @@
 #
 # Changes: 
 #   13.01.2016 check existence of previous target_config_list , than existence og status list and take assignment for first guess when searching resource nscs
+#   25.05.2016 enhence performance by checking current vlan config:  Check vlan config in "deep search"
 #
 #
 
@@ -50,10 +51,25 @@ typeset found
 typeset previous_status_list_available=0
 typeset target_config_list_available=0
 typeset option_enabled_only=0
+typeset -A VLAN_DN=[]
 
 source ${confdir}/remote_nsc.cfg # providing:  subtype, ResourceDomainServers, RemoteDomainServers
 [[ -f ${confdir}/remote_nsc.${dn}.cfg ]] && source ${confdir}/remote_nsc.${dn}.cfg # read domain specific cfg
 typeset AllDomainServers=$(echo $RemoteDomainServers $ResourceDomainServers | sed 's/\s+*/\n/g' |  sort -u )
+
+
+switch_vlan_prod_script=/home/sysman/tools/rem_pil/bin_ak/control_net_ak_psp.sh
+# uwes altes Script ist obsolete
+#switch_vlan_dev_script=${bindir}/control_rem_pil_test_net.sh
+switch_vlan_dev_script=${bindir}/control_net_develop.sh
+
+if [[ -x $switch_vlan_prod_script ]] ; then
+  switch_vlan_script=$switch_vlan_prod_script
+elif [[ -x $switch_vlan_dev_script ]] ; then
+  switch_vlan_script=$switch_vlan_dev_script
+else
+  switch_vlan_script=""
+fi
 
 # check cmdline args
 opts=$*
@@ -69,6 +85,8 @@ resource_nsc_list_file=${vardir}/resource_nsc.list
 nsc_status_list_file=${vardir}/nsc_status.list
 target_config_list_current_file=${vardir}/target_config.list
 target_config_list_previous_file=${vardir}/target_config.list.previous
+control_net_out_file=${vardir}/control_net_out.list
+
 
 function get_domain_server_hn
 {
@@ -109,9 +127,29 @@ function check_nsc_status
   fi
 }
 
+function get_dn_from_vlan_config
+{
+	fqdn_in=$1
+
+	while read -r  fqdn descr switch port default_vlan current_vlan
+	do
+		current_dn=${current_vlan##Current_VLAN=}
+		VLAN_DN[$fqdn]=$current_dn
+	done < $control_net_out_file
+
+	if [[ -n ${VLAN_DN[$fqdn_in]} && ${VLAN_DN[$fqdn_in]} != *unknown* ]]; then
+		echo ${VLAN_DN[$fqdn_in]}
+	else
+		echo ""
+	fi
+	return
+}
 
 function deep_search
 {
+	resource_fqdn=$1
+	resource_status=$2
+	#HIER !!!
   echo "deep search: try LOCAL first ....."
   resource_status=$(check_nsc_status $resource_fqdn)
 
@@ -119,9 +157,25 @@ function deep_search
     echo "$resource_fqdn $resource_fqdn available" | tee -a $nsc_status_list_file
     found=1
   else
-    echo "search for $resource_fqdn in all remote domains..."
-  
-    for remote_domain_server in $RemoteDomainServers
+		#echo "search through current vlan config..."
+
+		current_dn=$(get_dn_from_vlan_config $resource_fqdn)
+
+		DomainServersToSearch=$RemoteDomainServers # set as default
+
+		if [[ -n $current_dn ]]; then
+			domain_server_hn=$(get_domain_server_hn $current_dn)
+			if [[ -n $domain_server_hn ]]; then
+				DomainServersToSearch=${domain_server_hn}.${current_dn}
+			  echo "Should be reachable in ${current_dn} due to VLAN CONFIG : checking status ..."
+			else
+				echo "search for $resource_fqdn in all remote domains..."
+			fi
+		else
+			echo "search for $resource_fqdn in all remote domains..."
+		fi
+
+    for remote_domain_server in $DomainServersToSearch
     do
       echo "SEARCH ON $remote_domain_server"
       resource_status_in_remote_domain=$(ssh $remote_domain_server "${bindir}/nss_manage_remote_nsc.sh status $resource_fqdn --force_search")
@@ -265,15 +319,20 @@ do
 		fi
 
 		if (( $found == 0 )); then
-			deep_search
+		   [[ -f $control_net_out_file ]] || $switch_vlan_script -v > $control_net_out_file
+			deep_search $resource_fqdn $resource_status
 		fi
 
   else # search_type=deep
-		deep_search
+		[[ -f $control_net_out_file ]] || $switch_vlan_script -v > $control_net_out_file
+		deep_search $resource_fqdn $resource_status
 	fi
 
 	(( $found==0 )) && echo "$resource_fqdn unknown unreachable" | tee -a  $nsc_status_list_file
 
 done
+
+[[ -f $control_net_out_file ]]  &&  rm  $control_net_out_file
+
 echo "Done."
 
