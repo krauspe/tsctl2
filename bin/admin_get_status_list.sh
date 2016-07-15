@@ -24,6 +24,8 @@
 #   13.01.2016 check existence of previous target_config_list , than existence og status list and take assignment for first guess when searching resource nscs
 #   25.05.2016 - enhence performance by checking current vlan config:  Check vlan config in "deep search"
 #							 - deep search has new option to skip local search to avoid local search beeing executed twice
+#   15.07.2016 - consider $previous_fqdn possibly beeing emtpy string in direct search loop (when not set for any reason)A
+#                and force local search too
 #
 #
 
@@ -304,7 +306,7 @@ do
 			echo
 			echo "assume $resource_fqdn configured as $previous_fqdn"
 
-			if [[ $previous_fqdn == "unknown" ]]; then
+			if [[ $previous_fqdn == "unknown" || -z $previous_fqdn ]]; then
 				echo "trying LOCAL"
 				previous_fqdn=$resource_fqdn
 			fi
