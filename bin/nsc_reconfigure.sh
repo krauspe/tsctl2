@@ -50,6 +50,7 @@ function my_print
 if [[ -n $1 ]]; then
   if [[ $1 == "reset" || $1 == "default" || $1 == ${hn}.${dn} ]] ; then
     twostep_vars=/etc/2step/2step.vars
+    echo "${bindir}/nsc_manage_rpms.sh local"
     ${bindir}/nsc_manage_rpms.sh local
   elif [[ $1 == "list" ]] ; then
     echo "\npossible arguments are:\n"
@@ -70,7 +71,9 @@ if [[ -n $1 ]]; then
         exit 1
       fi
     #
+    echo "${bindir}/nsc_manage_rpms.sh $remote_dn"
     ${bindir}/nsc_manage_rpms.sh $remote_dn
+
 
     else
       echo "reconfigure failed! We need an FQDN ! SKIPPING."
