@@ -86,6 +86,7 @@ resource_nsc_list_file=${vardir}/resource_nsc.list
 nsc_status_list_file=${vardir}/nsc_status.list
 target_config_list_current_file=${vardir}/target_config.list
 target_config_list_previous_file=${vardir}/target_config.list.previous
+control_net_out_file=${vardir}/control_net_out.list
 
 
 function get_domain_server_hn
@@ -127,32 +128,25 @@ function check_nsc_status
   fi
 }
 
-# TODO: doesn't work so far !!
+
 function get_dn_from_vlan_config
 {
 	fqdn_in=$1
 
-	if [[ -z $switch_vlan_script ]]; then
-		echo ""
-		return
-	fi
-	# check if data available, if no run the script
-	if (( ${#VLAN_DN[*]} == 0 )); then
-		$switch_vlan_script -v | while read -r  fqdn descr switch port default_vlan current_vlan
-		do
-			current_dn=${current_vlan##Current_VLAN=}
-			VLAN_DN[$fqdn]=$current_dn
-		done
-	fi
+	while read -r  fqdn descr switch port default_vlan current_vlan
+	do
+		current_dn=${current_vlan##Current_VLAN=}
+		VLAN_DN[$fqdn]=$current_dn
+	done < $control_net_out_file
 
-	if [[ -n ${VLAN_DN[$fqdn_in]} ]]; then
+	if [[ -n ${VLAN_DN[$fqdn_in]} && ${VLAN_DN[$fqdn_in]} != *unknown* ]]; then
 		echo ${VLAN_DN[$fqdn_in]}
 	else
 		echo ""
 	fi
-
 	return
 }
+
 
 
 function deep_search
@@ -167,8 +161,9 @@ function deep_search
     echo "$resource_fqdn $resource_fqdn available" | tee -a $nsc_status_list_file
     found=1
   else
-		echo "search through current vlan config..."
-		current_dn = $(get_dn_from_vlan_config $resource_fqdn)
+		#echo "search through current vlan config..."
+
+		current_dn=$(get_dn_from_vlan_config $resource_fqdn)
 
 		DomainServersToSearch=$RemoteDomainServers # set as default
 
@@ -176,7 +171,7 @@ function deep_search
 			domain_server_hn=$(get_domain_server_hn $current_dn)
 			if [[ -n $domain_server_hn ]]; then
 				DomainServersToSearch=${domain_server_hn}.${current_dn}
-			  echo "found ${domain_server_hn}.${current_dn}: checking status"
+			  echo "Should be reachable in ${current_dn} due to VLAN CONFIG : checking status ..."
 			else
 				echo "search for $resource_fqdn in all remote domains..."
 			fi
@@ -328,15 +323,20 @@ do
 		fi
 
 		if (( $found == 0 )); then
+		   [[ -f $control_net_out_file ]] || $switch_vlan_script -v > $control_net_out_file
 			deep_search $resource_fqdn $resource_status
 		fi
 
   else # search_type=deep
+		[[ -f $control_net_out_file ]] || $switch_vlan_script -v > $control_net_out_file
 		deep_search $resource_fqdn $resource_status
 	fi
 
 	(( $found==0 )) && echo "$resource_fqdn unknown unreachable" | tee -a  $nsc_status_list_file
 
 done
+
+[[ -f $control_net_out_file ]]  &&  rm  $control_net_out_file
+
 echo "Done."
 
