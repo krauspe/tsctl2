@@ -1,0 +1,6 @@
+git status | sed '
+ s/#.*deleted:/#git rm /
+ s/#.*modified:/#git add /
+ s/^#	/git add / 
+ s/^[^#]/#&/
+' > x
