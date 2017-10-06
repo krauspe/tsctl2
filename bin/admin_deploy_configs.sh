@@ -179,8 +179,9 @@ fi
 ##############
 
 
-if [[ "$*" != *cached* ]];then
+if [[ "$*" == *cached* ]];then
   echo "Use CACHED data for deployment due to comdline option !"
+else
 
     echo "\n<< Collect nsc configs from all RemoteDomainServers >>\n"
 

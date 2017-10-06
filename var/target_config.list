@@ -1,8 +1,10 @@
-psp9-s1.ak4.lgn.dfs.de psp105-s1.br1.bre.dfs.de enable_reconfiguration
-psp10-s1.ak4.lgn.dfs.de psp106-s1.br1.bre.dfs.de enable_reconfiguration
-psp11-s1.ak4.lgn.dfs.de psp107-s1.br1.bre.dfs.de enable_reconfiguration
-psp12-s1.ak4.lgn.dfs.de psp108-s1.br1.bre.dfs.de enable_reconfiguration
-psp13-s1.ak4.lgn.dfs.de psp101-s1.br1.bre.dfs.de enable_reconfiguration
-psp14-s1.ak4.lgn.dfs.de psp102-s1.br1.bre.dfs.de enable_reconfiguration
-psp15-s1.ak4.lgn.dfs.de psp103-s1.br1.bre.dfs.de enable_reconfiguration
-psp16-s1.ak4.lgn.dfs.de psp104-s1.br1.bre.dfs.de enable_reconfiguration
+psp17-s1.ak2.lgn.dfs.de psp101-s1.rk3.lgn.dfs.de 
+psp18-s1.ak2.lgn.dfs.de psp102-s1.rk3.lgn.dfs.de 
+psp19-s1.ak2.lgn.dfs.de psp103-s1.rk3.lgn.dfs.de 
+psp20-s1.ak2.lgn.dfs.de psp104-s1.rk3.lgn.dfs.de 
+psp11-s1.ak4.lgn.dfs.de default enable_reconfiguration
+psp12-s1.ak4.lgn.dfs.de default enable_reconfiguration
+psp13-s1.ak4.lgn.dfs.de default enable_reconfiguration
+psp14-s1.ak4.lgn.dfs.de default enable_reconfiguration
+psp15-s1.ak4.lgn.dfs.de psp101-s1.mu1.muc.dfs.de 
+psp16-s1.ak4.lgn.dfs.de psp102-s1.mu1.muc.dfs.de 

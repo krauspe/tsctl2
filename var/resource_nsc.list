@@ -14,10 +14,10 @@
 #psp14-s1.ak2.lgn.dfs.de 00:d0:c9:ce:16:0d
 #psp15-s1.ak2.lgn.dfs.de 00:d0:c9:ce:16:13
 #psp16-s1.ak2.lgn.dfs.de 00:d0:c9:ce:16:03
-#psp17-s1.ak2.lgn.dfs.de 00:d0:c9:c4:3d:25
-#psp18-s1.ak2.lgn.dfs.de 00:d0:c9:b6:a8:1b
-#psp19-s1.ak2.lgn.dfs.de 00:d0:c9:c4:2f:f9
-#psp20-s1.ak2.lgn.dfs.de 00:d0:c9:c4:22:e7
+psp17-s1.ak2.lgn.dfs.de 00:d0:c9:c4:3d:25
+psp18-s1.ak2.lgn.dfs.de 00:d0:c9:b6:a8:1b
+psp19-s1.ak2.lgn.dfs.de 00:d0:c9:c4:2f:f9
+psp20-s1.ak2.lgn.dfs.de 00:d0:c9:c4:22:e7
 #psp1-s1.ak3.lgn.dfs.de 1c:87:2c:5d:9c:5e
 #psp2-s1.ak3.lgn.dfs.de 1c:87:2c:5d:9c:57
 #psp3-s1.ak3.lgn.dfs.de 1c:87:2c:5d:9c:4d
@@ -38,8 +38,8 @@
 #psp6-s1.ak4.lgn.dfs.de 1c:87:2c:5d:98:9c
 #psp7-s1.ak4.lgn.dfs.de 1c:87:2c:5d:98:60
 #psp8-s1.ak4.lgn.dfs.de 1c:87:2c:5d:98:13
-psp9-s1.ak4.lgn.dfs.de 1c:87:2c:5d:9c:2b
-psp10-s1.ak4.lgn.dfs.de 1c:87:2c:5d:9c:3f
+#psp9-s1.ak4.lgn.dfs.de 1c:87:2c:5d:9c:2b
+#psp10-s1.ak4.lgn.dfs.de 1c:87:2c:5d:9c:3f
 psp11-s1.ak4.lgn.dfs.de 1c:87:2c:5d:9c:45
 psp12-s1.ak4.lgn.dfs.de 1c:87:2c:5d:9a:7d
 psp13-s1.ak4.lgn.dfs.de 1c:87:2c:5d:9c:47
