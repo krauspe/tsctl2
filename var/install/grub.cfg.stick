@@ -1,0 +1,22 @@
+# This grub.cfg file was created for MULTI BOOT PURPOSES (eg. remote piloting)
+# USB-STICK based on CentOS7
+# (c) DFS 2017
+ 
+set timeout=2
+set color_normal=white/black
+set default=
+set root_centos="hd2"
+set root_sles="hd1"
+
+menuentry "0 CentOS (hd2)" {
+ set root=${root_centos}
+ drivemap -s ${root} ${root}
+ chainloader +1
+}
+
+menuentry "1 SLES (hd1)" {
+ set root=${root_sles}
+ drivemap -s ${root} ${root}
+ chainloader +1
+}
+
